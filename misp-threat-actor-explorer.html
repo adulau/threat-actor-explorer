@@ -49,6 +49,9 @@
     .btn.danger { border-color: rgba(251,113,133,.55); color: #fecdd3; }
     .btn:disabled { opacity: .45; cursor: not-allowed; }
     .workspace { display: grid; grid-template-columns: 300px minmax(420px,1fr) 390px; min-height: 0; }
+    .workspace.sidebars-hidden { grid-template-columns: minmax(0,1fr); }
+    .workspace.sidebars-hidden > .sidebar,
+    .workspace.sidebars-hidden > .inspector { display: none; }
     .sidebar, .inspector { background: var(--panel); min-height: 0; display: flex; flex-direction: column; }
     .sidebar { border-right: 1px solid var(--line); }
     .inspector { border-left: 1px solid var(--line); }
@@ -202,6 +205,7 @@
       html, body { overflow: auto; }
       .app { min-height: 100%; height: auto; }
       .workspace { grid-template-columns: 1fr; grid-template-rows: 430px 620px 520px; }
+      .workspace.sidebars-hidden { grid-template-rows: minmax(620px,1fr); }
       .sidebar { border-right: 0; border-bottom: 1px solid var(--line); }
       .inspector { border-left: 0; border-top: 1px solid var(--line); }
       header { flex-wrap: wrap; height: auto; min-height: 68px; padding: 8px; }
@@ -222,13 +226,14 @@
       <span id="mispStatus" class="pill warn">MISP Galaxy: no local cache</span>
     </div>
     <div class="header-actions">
+      <button id="sidebarsBtn" class="btn" type="button" aria-controls="actorSidebar inspectorSidebar" aria-pressed="false" title="Hide the threat actor and details sidebars">Hide sidebars</button>
       <button id="updateBtn" class="btn primary" title="Download current data and Pivotick from GitHub">Update</button>
       <button id="dataBtn" class="btn" title="Import, export, and cache options">Data</button>
     </div>
   </header>
 
-  <main class="workspace">
-    <aside class="sidebar">
+  <main id="workspace" class="workspace">
+    <aside id="actorSidebar" class="sidebar">
       <div class="section">
         <h2 class="section-title">Threat actors</h2>
         <input id="actorSearch" class="input" type="search" placeholder="Search names, aliases, UUIDs…" autocomplete="off">
@@ -278,7 +283,7 @@
       </div>
     </section>
 
-    <aside class="inspector">
+    <aside id="inspectorSidebar" class="inspector">
       <div class="tabs">
         <button class="tab active" data-tab="details">Details</button>
         <button class="tab" data-tab="nodes">Nodes</button>
@@ -403,6 +408,7 @@
     showMeta: false,
     nodeDisplayMode: 'cards',
     edgeLabelMode: 'all',
+    sidebarsHidden: false,
     metaFieldSearch: '',
     enabledKinds: new Set(Object.keys(KIND_STYLE)),
     actorSearch: '',
@@ -411,7 +417,7 @@
 
   const $ = id => document.getElementById(id);
   const els = {
-    pivotickStatus: $('pivotickStatus'), mispStatus: $('mispStatus'), updateBtn: $('updateBtn'), dataBtn: $('dataBtn'),
+    pivotickStatus: $('pivotickStatus'), mispStatus: $('mispStatus'), updateBtn: $('updateBtn'), dataBtn: $('dataBtn'), sidebarsBtn: $('sidebarsBtn'), workspace: $('workspace'),
     actorSearch: $('actorSearch'), actorCount: $('actorCount'), actorList: $('actorList'), graph: $('graph'), emptyState: $('emptyState'),
     graphStats: $('graphStats'), legend: $('legend'), depth: $('depthSelect'), maxNodes: $('maxNodesSelect'), reverse: $('reverseToggle'),
     metaToggle: $('metaToggle'), nodeDisplay: $('nodeDisplaySelect'), edgeLabels: $('edgeLabelSelect'), metaFieldsBtn: $('metaFieldsBtn'), rootBtn: $('rootBtn'), resetRootBtn: $('resetRootBtn'),
@@ -1004,6 +1010,18 @@
       else toast('Fit is not exposed by this Pivotick bundle.','');
     } catch(e) { toast(`Could not fit graph: ${e.message}`,'error'); }
   }
+  function updateSidebars() {
+    els.workspace.classList.toggle('sidebars-hidden',state.sidebarsHidden);
+    els.sidebarsBtn.textContent=state.sidebarsHidden?'Show sidebars':'Hide sidebars';
+    els.sidebarsBtn.setAttribute('aria-pressed',String(state.sidebarsHidden));
+    els.sidebarsBtn.title=state.sidebarsHidden?'Show the threat actor and details sidebars':'Hide the threat actor and details sidebars';
+  }
+  function toggleSidebars() {
+    state.sidebarsHidden=!state.sidebarsHidden;
+    storageSet('misp-galaxy.sidebarsHidden',String(state.sidebarsHidden));
+    updateSidebars();
+    requestAnimationFrame(()=>window.dispatchEvent(new Event('resize')));
+  }
   function selectActor(uuid) {
     state.selectedActor=uuid; state.pivotRoot=uuid; state.selectedElement={type:'node',record:state.records.get(uuid)}; storageSet('misp-galaxy.selectedActor',uuid);
     renderActorList(); updateMetaControls(); renderGraph();
@@ -1148,6 +1166,7 @@
 
   function bindEvents() {
     els.actorSearch.addEventListener('input',()=>{state.actorSearch=els.actorSearch.value;state.actorLimit=250;renderActorList();});
+    els.sidebarsBtn.addEventListener('click',toggleSidebars);
     [els.depth,els.maxNodes,els.reverse].forEach(el=>el.addEventListener('change',renderGraph)); els.fitBtn.addEventListener('click',fitGraph);
     els.nodeDisplay.addEventListener('change',()=>{state.nodeDisplayMode=els.nodeDisplay.value;storageSet('misp-galaxy.nodeDisplayMode',state.nodeDisplayMode);renderGraph();});
     els.edgeLabels.addEventListener('change',()=>{state.edgeLabelMode=els.edgeLabels.value;storageSet('misp-galaxy.edgeLabelMode',state.edgeLabelMode);renderGraph();});
@@ -1177,12 +1196,13 @@
 
   async function init() {
     state.showMeta=storageGet('misp-galaxy.showMeta')==='true';
+    state.sidebarsHidden=storageGet('misp-galaxy.sidebarsHidden')==='true';
     const savedNodeDisplay=storageGet('misp-galaxy.nodeDisplayMode');
     const savedEdgeLabels=storageGet('misp-galaxy.edgeLabelMode');
     state.nodeDisplayMode=['cards','full','compact','shapes'].includes(savedNodeDisplay)?savedNodeDisplay:'cards';
     state.edgeLabelMode=['all','relationships','metadata','none'].includes(savedEdgeLabels)?savedEdgeLabels:'all';
     els.nodeDisplay.value=state.nodeDisplayMode; els.edgeLabels.value=state.edgeLabelMode;
-    bindEvents(); renderKindChecks(); renderLegend(); updateMetaControls();
+    bindEvents(); updateSidebars(); renderKindChecks(); renderLegend(); updateMetaControls();
     try { state.db=await openDb(); }
     catch(error) { toast(`IndexedDB is unavailable: ${error.message}. Local caching cannot work.`,'error'); return; }
     let pivotick=false,misp=false;
