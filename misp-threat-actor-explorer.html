@@ -90,6 +90,10 @@
     .panel-content { overflow: auto; min-height: 0; padding: 13px; }
     .detail-title { font-size: 18px; margin: 0 0 5px; overflow-wrap: anywhere; }
     .detail-sub { color: var(--muted); font-size: 12px; margin-bottom: 14px; }
+    .actor-identity { margin: 0 0 14px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: #0b1424; }
+    .actor-identity__label { display: block; margin-bottom: 4px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .actor-identity__name { display: block; margin-bottom: 11px; font-size: 20px; line-height: 1.2; overflow-wrap: anywhere; }
+    .actor-identity__synonyms { display: flex; flex-wrap: wrap; gap: 4px; }
     .kv { display: grid; grid-template-columns: 112px 1fr; gap: 7px 10px; padding: 8px 0; border-bottom: 1px solid rgba(41,57,85,.65); font-size: 12px; }
     .kv .key { color: var(--muted); overflow-wrap: anywhere; }
     .kv .value { overflow-wrap: anywhere; white-space: pre-wrap; }
@@ -455,7 +459,7 @@
     return out;
   }
   function recommendedMetaFields(fields=state.metaFields) {
-    const preferred=['meta.country','meta.cfr-suspected-state-sponsor','meta.cfr-target-category','meta.cfr-suspected-victims','meta.cfr-type-of-incident','meta.motive','meta.target-category','meta.sector','meta.region','meta.synonyms'];
+    const preferred=['synonyms','meta.country','meta.cfr-suspected-state-sponsor','meta.cfr-target-category','meta.cfr-suspected-victims','meta.cfr-type-of-incident','meta.motive','meta.target-category','meta.sector','meta.region'];
     const available=new Set(fields.map(f=>f.field)); return preferred.filter(f=>available.has(f)).slice(0,7);
   }
   function buildMetaIndex() {
@@ -465,6 +469,14 @@
       for (const [field,raw] of flattenMetaEntries(rec.meta,'meta')) {
         const display=plainValue(raw).trim(); const normalized=normalizeMetaValue(raw); if (!normalized) continue;
         const key=metaKey(field,raw); let entry=state.metaIndex.get(key);
+        if (!entry) { entry={id:metaNodeId(field,raw),field,value:display,normalized,recordUuids:new Set()}; state.metaIndex.set(key,entry); state.metaById.set(entry.id,entry); }
+        entry.recordUuids.add(rec.uuid); perRecord.add(field);
+      }
+      // Synonyms are first-class pivot values, including records that provide them
+      // at the value level rather than inside the MISP meta object.
+      for (const raw of rec.synonyms||[]) {
+        const display=plainValue(raw).trim(), normalized=normalizeMetaValue(raw); if (!normalized) continue;
+        const field='synonyms', key=metaKey(field,raw); let entry=state.metaIndex.get(key);
         if (!entry) { entry={id:metaNodeId(field,raw),field,value:display,normalized,recordUuids:new Set()}; state.metaIndex.set(key,entry); state.metaById.set(entry.id,entry); }
         entry.recordUuids.add(rec.uuid); perRecord.add(field);
       }
@@ -482,6 +494,9 @@
     const found=new Map();
     for (const [field,value] of flattenMetaEntries(rec.meta,'meta')) {
       if (!state.selectedMetaFields.has(field)) continue; const entry=metaEntryFor(field,value); if (entry) found.set(entry.id,entry);
+    }
+    if (state.selectedMetaFields.has('synonyms')) for (const value of rec.synonyms||[]) {
+      const entry=metaEntryFor('synonyms',value); if (entry) found.set(entry.id,entry);
     }
     return [...found.values()];
   }
@@ -806,7 +821,7 @@
     for (const actor of filtered.slice(0,state.actorLimit)) {
       const item=document.createElement('div'); item.className='actor-item'+(state.selectedActor===actor.uuid?' active':''); item.tabIndex=0;
       const aliases=unique([...actor.synonyms,...toArray(actor.meta?.synonyms),...toArray(actor.meta?.aliases)]).slice(0,5);
-      item.innerHTML=`<strong>${escapeHtml(actor.value)}</strong><span>${escapeHtml(aliases.join(' · ') || actor.cluster.type || actor.uuid)}</span>`;
+      item.innerHTML=`<strong title="Main name">${escapeHtml(actor.value)}</strong><span>${aliases.length?`Synonyms: ${escapeHtml(aliases.join(' · '))}`:escapeHtml(actor.cluster.type||actor.uuid)}</span>`;
       item.addEventListener('click',()=>selectActor(actor.uuid)); item.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();selectActor(actor.uuid);}});
       frag.appendChild(item);
     }
@@ -1019,10 +1034,17 @@
   function renderMetaValue(value,field) {
     const values=Array.isArray(value)?value:[value]; return values.map(v=>{ const entry=metaEntryFor(field,v); const raw=plainValue(v); if(!entry)return `<span class="badge">${escapeHtml(raw)}</span>`; return `<button class="meta-pivot" data-action="pivot-meta" data-id="${escapeHtml(entry.id)}" title="Pivot through ${escapeHtml(field)}">${escapeHtml(raw)} ↗</button>`; }).join('')||'<span class="muted">empty</span>';
   }
+  function renderSynonyms(rec) {
+    const synonyms=unique(rec.synonyms||[]);
+    if (!synonyms.length) return '<span class="muted">No synonyms listed</span>';
+    return synonyms.map(value=>{ const entry=metaEntryFor('synonyms',value); return entry
+      ? `<button class="meta-pivot" data-action="pivot-meta" data-id="${escapeHtml(entry.id)}" title="Pivot through synonym">${escapeHtml(value)} ↗</button>`
+      : `<span class="badge">${escapeHtml(value)}</span>`; }).join('');
+  }
   function renderNodeDetails(rec) {
-    const rows=[['UUID',rec.uuid],['Kind',rec.kind],['Galaxy type',rec.cluster?.type],['Galaxy name',rec.cluster?.name],['Source file',rec.cluster?.path],['Cluster UUID',rec.cluster?.uuid],['Cluster version',rec.cluster?.version],['Synonyms',unique([...toArray(rec.synonyms),...toArray(rec.meta?.synonyms)])]];
-    const metaRows=metadataRows(rec.meta,'meta'); const extraRows=metadataRows(rec.extra,'record'); const relationCount=(rec.related||[]).length+(state.reverse.get(rec.uuid)||[]).length;
-    return `<h2 class="detail-title">${escapeHtml(rec.value)}</h2><div class="detail-sub">${escapeHtml(rec.cluster?.type||'Unknown galaxy')} · ${relationCount} direct relationship references</div>
+    const rows=[['UUID',rec.uuid],['Kind',rec.kind],['Galaxy type',rec.cluster?.type],['Galaxy name',rec.cluster?.name],['Source file',rec.cluster?.path],['Cluster UUID',rec.cluster?.uuid],['Cluster version',rec.cluster?.version]];
+    const metaRows=metadataRows(rec.meta,'meta').filter(([key])=>key!=='meta.synonyms'); const extraRows=metadataRows(rec.extra,'record'); const relationCount=(rec.related||[]).length+(state.reverse.get(rec.uuid)||[]).length;
+    return `<div class="actor-identity"><span class="actor-identity__label">Main name</span><strong class="actor-identity__name">${escapeHtml(rec.value)}</strong><span class="actor-identity__label">All synonyms · click to pivot</span><div class="actor-identity__synonyms">${renderSynonyms(rec)}</div></div><div class="detail-sub">${escapeHtml(rec.cluster?.type||'Unknown galaxy')} · ${relationCount} direct relationship references</div>
       <div class="inspector-actions"><button class="btn" data-action="pivot-node" data-id="${escapeHtml(rec.uuid)}">Pivot from node</button><button class="btn" data-action="focus-node" data-id="${escapeHtml(rec.uuid)}">Focus graph</button><button class="btn" data-action="copy-uuid" data-id="${escapeHtml(rec.uuid)}">Copy UUID</button><button class="btn" data-action="export-record">Export JSON</button></div>
       ${rec.description?`<p class="description">${escapeHtml(rec.description)}</p>`:''}
       ${rows.map(([k,v])=>`<div class="kv"><div class="key">${escapeHtml(k)}</div><div class="value">${renderValue(v)}</div></div>`).join('')}
