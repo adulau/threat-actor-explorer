@@ -58,6 +58,8 @@ The graph toolbar includes two display controls:
 - **Nodes** — choose readable cards, full-name cards, compact cards, or the original geometric shapes. Readable cards wrap names over multiple lines; full-name cards do not clamp the title. Cards also show the semantic entity class and galaxy type, while metadata cards show their field and match count.
 - **Edge labels** — show all labels, only ordinary relationships, only metadata fields, or no labels. Relationship labels are rendered as high-contrast pills and remain horizontal.
 
+Pivotick runs in its **full UI mode**, so its complete graph control surface is also available. Use Pivotick's View controls to switch layouts and reorder the graph, tune or pause the force physics, change grid settings, fit or zoom the viewport, and access the remaining graph tools.
+
 The current graph root has a cyan outline and a **ROOT** marker. Node and edge display preferences are saved in local browser storage and included in graph JSON exports.
 
 ## Features

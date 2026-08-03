@@ -985,7 +985,7 @@
       isDirected:true,
       simulation:{useWorker:false},
       render:renderOptions,
-      UI:{mode:'viewer',tooltip:{render:element=>{ const d=element?.getData?.(); if (d?.record) return tooltipHtmlForNode(d.record); if (d?.edgeRecord) return tooltipHtmlForEdge(d.edgeRecord); return ''; }}},
+      UI:{mode:'full',tooltip:{render:element=>{ const d=element?.getData?.(); if (d?.record) return tooltipHtmlForNode(d.record); if (d?.edgeRecord) return tooltipHtmlForEdge(d.edgeRecord); return ''; }}},
       callbacks:{
         onNodeClick:(event,node)=>selectGraphNode(node.id), onNodeSelect:(node)=>selectGraphNode(node.id), onNodeDbclick:(event,node)=>pivotGraphNode(node.id),
         onEdgeClick:(event,edge)=>selectGraphEdge(edge.getData()?.edgeRecord), onEdgeSelect:(edge)=>selectGraphEdge(edge.getData()?.edgeRecord)
