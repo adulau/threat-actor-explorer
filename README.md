@@ -89,6 +89,8 @@ The app uses IndexedDB, Fetch, Blob URLs, and `DecompressionStream('deflate-raw'
 
 Galaxy metadata is escaped before display. Only `http:` and `https:` references are made clickable. The application does not send imported or cached data to a server.
 
-## Data and library licenses
+## License
 
-The application itself is provided as source code in the HTML file. Pivotick and MISP Galaxy retain their respective upstream licenses and attribution. Review the upstream repositories for current license terms.
+MISP Galaxy Threat Actor Explorer is licensed under the [BSD 2-Clause License](LICENSE).
+
+Pivotick and MISP Galaxy are bundled as submodules and retain their respective upstream licenses and attribution. Review those repositories for the license terms that apply to their code and data.
