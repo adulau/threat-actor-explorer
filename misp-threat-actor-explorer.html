@@ -144,15 +144,15 @@
     /* Pivotick custom graph cards. Galaxy data is inserted with textContent, never as HTML. */
     .misp-graph-node {
       --node-color: #94a3b8;
-      width: 210px; min-height: 62px; display: flex; align-items: center; gap: 10px;
-      padding: 8px 10px; color: #f8fafc; background: rgba(8,15,28,.96);
+      width: 184px; min-height: 82px; display: inline-flex; align-items: center; gap: 10px;
+      padding: 10px; color: #f8fafc; background: rgba(8,15,28,.97);
       border: 1px solid color-mix(in srgb, var(--node-color), #ffffff 22%);
       border-left: 5px solid var(--node-color); border-radius: 11px;
       box-shadow: 0 7px 20px rgba(2,6,23,.28); font-family: Inter, ui-sans-serif, system-ui, sans-serif;
       pointer-events: none; user-select: none; overflow: hidden;
     }
-    .misp-graph-node.compact { width: 138px; min-height: 48px; gap: 7px; padding: 6px 8px; border-left-width: 4px; border-radius: 9px; }
-    .misp-graph-node.full { width: 280px; min-height: 62px; }
+    .misp-graph-node.compact { width: 132px; min-height: 68px; gap: 7px; padding: 7px 8px; border-left-width: 4px; border-radius: 9px; }
+    .misp-graph-node.full { width: 224px; min-height: 96px; }
     .misp-graph-node.meta { background: rgba(7,35,38,.97); }
     .misp-graph-node.unresolved { border-style: dashed; opacity: .9; }
     .misp-graph-node.root {
@@ -187,9 +187,9 @@
     }
     .misp-edge-label {
       display: inline-flex; align-items: center; justify-content: center; max-width: 210px;
-      padding: 4px 8px; border: 1px solid #64748b; border-radius: 999px;
-      background: rgba(15,23,42,.96); color: #f8fafc; box-shadow: 0 2px 8px rgba(2,6,23,.28);
-      font: 700 11px/1.15 Inter, ui-sans-serif, system-ui, sans-serif; letter-spacing: .01em;
+      padding: 5px 9px; border: 1px solid #94a3b8; border-radius: 999px;
+      background: rgba(15,23,42,.98); color: #ffffff; box-shadow: 0 2px 9px rgba(2,6,23,.42);
+      font: 750 12px/1.15 Inter, ui-sans-serif, system-ui, sans-serif; letter-spacing: .01em;
       text-align: center; white-space: normal; overflow-wrap: anywhere; pointer-events: none; user-select: none;
     }
     .misp-edge-label.metadata { border-color: #2dd4bf; background: rgba(6,55,51,.96); color: #ccfbf1; }
@@ -976,7 +976,7 @@
           text:state.nodeDisplayMode==='shapes'?short(shapeLabel,40):'',textColor:'#0f172a',textAnchorPosition:'middle',textHorizontalShift:0,textVerticalShift:-2.0,fontFamily:'system-ui, sans-serif'
         }};
       }),
-      edges:visible.edges.map(e=>{ const meta=e.edgeKind==='metadata'; const similar=e.type==='similar'; return {id:e.id,from:e.source,to:e.target,data:{label:meta?e.type.replace(/^meta\./,''):e.type,edgeRecord:e},style:{edge:{strokeColor:meta?'#0f9f8c':(similar?'#d97706':'#475569'),strokeWidth:meta?1.6:(similar?2.5:1.8),opacity:meta?.78:.88,curveStyle:'bidirectional',dashed:meta||similar,rotateLabel:false,markerEnd:'arrow'},label:{backgroundColor:'#0f172af2',fontSize:11,fontFamily:'system-ui, sans-serif',color:'#f8fafc'}}}; })
+      edges:visible.edges.map(e=>{ const meta=e.edgeKind==='metadata'; const similar=e.type==='similar'; return {id:e.id,from:e.source,to:e.target,data:{label:meta?e.type.replace(/^meta\./,''):e.type,edgeRecord:e},style:{edge:{strokeColor:meta?'#0d9488':(similar?'#d97706':'#334155'),strokeWidth:meta?2.2:(similar?2.8:2.3),opacity:meta?.9:.96,curveStyle:'bidirectional',dashed:meta||similar,rotateLabel:false,markerEnd:'arrow'},label:{backgroundColor:'#0f172af2',fontSize:12,fontFamily:'system-ui, sans-serif',color:'#f8fafc'}}}; })
     };
     const Ctor=getPivotickCtor(); if (!Ctor) { toast('Unable to locate the Pivotick constructor in the loaded bundle.','error'); return; }
     const renderOptions={
@@ -989,7 +989,7 @@
     if (state.nodeDisplayMode !== 'shapes') renderOptions.renderNode=renderReadableNode;
     const options={
       isDirected:true,
-      simulation:{useWorker:false},
+      simulation:{useWorker:false,d3LinkDistance:105,d3CollideRadiusMultiplier:1.12},
       render:renderOptions,
       UI:{mode:'full',tooltip:{render:element=>{ const d=element?.getData?.(); if (d?.record) return tooltipHtmlForNode(d.record); if (d?.edgeRecord) return tooltipHtmlForEdge(d.edgeRecord); return ''; }}},
       callbacks:{
