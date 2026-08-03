@@ -260,7 +260,7 @@
         <div id="emptyState" class="empty-state">
           <div class="setup-card">
             <h2>Local-first galaxy exploration</h2>
-            <p>The first run downloads the latest Pivotick browser bundle and a commit-pinned ZIP of the MISP Galaxy repository from GitHub. The data remains in this browser’s IndexedDB for offline reuse.</p>
+            <p>When started with <code>./start-standalone.sh</code>, the application loads Pivotick and MISP Galaxy directly from the bundled git submodules. Alternatively, download the latest releases or import local files. Indexed data remains in this browser’s IndexedDB for offline reuse.</p>
             <div class="setup-actions">
               <button id="firstRunBtn" class="btn primary">Download and initialise</button>
               <button id="importMispBtnInline" class="btn">Import MISP ZIP</button>
@@ -362,6 +362,11 @@
     mispCommit: 'https://api.github.com/repos/MISP/misp-galaxy/commits/main',
     mispZip: sha => `https://codeload.github.com/MISP/misp-galaxy/zip/${encodeURIComponent(sha)}`,
     mispZipFallback: sha => `https://api.github.com/repos/MISP/misp-galaxy/zipball/${encodeURIComponent(sha)}`
+  };
+  const LOCAL = {
+    pivotickJs: 'pivotick/dist/pivotick.umd.js',
+    pivotickCss: 'pivotick/dist/assets/pivotick.css',
+    mispManifest: '.local/misp-clusters.json'
   };
   const KIND_STYLE = {
     Actor:     { color: '#fb7185', shape: 'hexagon', size: 19 },
@@ -607,6 +612,12 @@
     const bundle=await dbGet('pivotick.bundle'); if (!bundle?.js || !bundle?.css) return false;
     await injectPivotick(bundle); return true;
   }
+  async function loadSubmodulePivotick() {
+    const [jsResponse,cssResponse]=await Promise.all([fetch(LOCAL.pivotickJs),fetch(LOCAL.pivotickCss)]);
+    if (!jsResponse.ok || !cssResponse.ok) throw new Error('Local Pivotick build is unavailable.');
+    const bundle={js:await jsResponse.text(),css:await cssResponse.text(),meta:{tag:'git submodule',source:'pivotick/',downloadedAt:new Date().toISOString()}};
+    await injectPivotick(bundle); await dbPut('pivotick.bundle',bundle); return true;
+  }
   async function updatePivotick() {
     loading(true,'Updating Pivotick','Reading GitHub release metadata…',4);
     let release;
@@ -707,6 +718,31 @@
   async function loadCachedMisp() {
     const index=await dbGet('misp.index'); if (!index || index.version!==INDEX_VERSION || !Array.isArray(index.records)) return false;
     indexFromRecords(index.records,index.meta||{}); return true;
+  }
+  async function loadSubmoduleMisp() {
+    const manifestResponse=await fetch(LOCAL.mispManifest,{cache:'no-store'});
+    if (!manifestResponse.ok) throw new Error('Local MISP Galaxy manifest is unavailable.');
+    const manifest=await manifestResponse.json();
+    if (!Array.isArray(manifest.files) || !manifest.files.length) throw new Error('The local MISP Galaxy manifest is empty.');
+    loading(true,'Indexing local MISP Galaxy','Reading cluster files from the git submodule…',5);
+    const records=[]; let parsedFiles=0,skippedFiles=0,actorFileFound=false;
+    for (let i=0;i<manifest.files.length;i++) {
+      const path=manifest.files[i];
+      try {
+        const response=await fetch(`misp-galaxy/${path}`);
+        if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+        const cluster=await response.json();
+        if (!Array.isArray(cluster.values)) { skippedFiles++; continue; }
+        if (/clusters\/threat-actor\.json$/i.test(path)) actorFileFound=true;
+        for (const value of cluster.values) if (value?.uuid) records.push(normalizeRecord(value,cluster,path));
+        parsedFiles++;
+      } catch(error) { console.warn('Skipped local cluster',path,error); skippedFiles++; }
+      if (i%3===0) { progress(`Indexing ${i+1}/${manifest.files.length} cluster files · ${records.length.toLocaleString()} values`,5+(i+1)/manifest.files.length*85); await nextFrame(); }
+    }
+    if (!actorFileFound) throw new Error('The local submodule does not contain clusters/threat-actor.json.');
+    const meta={source:'misp-galaxy git submodule',shortSha:manifest.commit?.slice(0,12),sha:manifest.commit,downloadedAt:new Date().toISOString(),parsedFiles,skippedFiles,recordCount:records.length};
+    const index={version:INDEX_VERSION,createdAt:new Date().toISOString(),records,meta};
+    await dbPut('misp.index',index); indexFromRecords(records,meta); progress('Local MISP Galaxy is ready.',100); return true;
   }
   async function updateMisp() {
     loading(true,'Updating MISP Galaxy','Resolving the current main-branch commit…',3);
@@ -1128,11 +1164,12 @@
     try { state.db=await openDb(); }
     catch(error) { toast(`IndexedDB is unavailable: ${error.message}. Local caching cannot work.`,'error'); return; }
     let pivotick=false,misp=false;
-    try { pivotick=await loadCachedPivotick(); } catch(error) { console.warn(error); toast(`Cached Pivotick could not be loaded: ${error.message}`,'error'); }
-    try { misp=await loadCachedMisp(); } catch(error) { console.warn(error); toast(`Cached MISP index could not be loaded: ${error.message}`,'error'); }
+    try { pivotick=await loadSubmodulePivotick(); } catch(error) { console.info(error.message); try { pivotick=await loadCachedPivotick(); } catch(cacheError) { console.warn(cacheError); toast(`Pivotick could not be loaded: ${cacheError.message}`,'error'); } }
+    try { misp=await loadSubmoduleMisp(); } catch(error) { console.info(error.message); try { misp=await loadCachedMisp(); } catch(cacheError) { console.warn(cacheError); toast(`MISP data could not be loaded: ${cacheError.message}`,'error'); } }
+    loading(false);
     updateStatus();
     if (misp) { chooseInitialActor(); if(pivotick)renderGraph(); }
-    if (!pivotick || !misp) toast('Initial data is missing. Use “Download and initialise” or import local release files.');
+    if (!pivotick || !misp) toast('Initial data is missing. Run ./start-standalone.sh, use “Download and initialise”, or import local release files.');
   }
   init();
 })();

@@ -2,17 +2,32 @@
 
 A standalone, browser-only HTML/JavaScript application for exploring the MISP `threat-actor` galaxy, UUID-based relationships across every cluster in the MISP Galaxy repository, and shared MISP Galaxy metadata. Graph rendering is performed by Pivotick.
 
-## Run
+## Run with the bundled repositories
 
-1. Open `misp-threat-actor-explorer.html` directly in a recent Firefox, Chromium, or Edge browser.
-2. Select **Download and initialise** on first use.
-3. Select a threat actor from the left panel.
+Clone with its submodules and start the local server:
 
-No HTTP server, backend, build step, account, or GitHub token is required.
+```sh
+git clone --recurse-submodules <repository-url>
+cd threat-actor-explorer
+./start-standalone.sh
+```
+
+Then open `http://localhost:8000/misp-threat-actor-explorer.html`. The launcher builds Pivotick once, creates a manifest for the checked-out MISP Galaxy clusters, and serves the application locally. The application automatically reads both submodules and requires no initial ZIP import or GitHub API request. Node.js/npm and Python 3 are required by the launcher; set `PORT` or `HOST` to override its defaults.
+
+For an existing checkout, `git submodule update --init --recursive` obtains the bundled repositories. A later `git submodule update --remote` followed by restarting the launcher updates the local data sources.
+
+The original single-file workflow remains available: open `misp-threat-actor-explorer.html` directly in a recent browser and select **Download and initialise**, or use **Data** to import release files manually. Browsers do not permit an HTML file opened through `file://` to enumerate neighboring files, so submodule auto-loading uses the launcher.
+
+The fallback single-file workflow requires no HTTP server, backend, build step, account, or GitHub token.
 
 ## Local caching
 
-The application downloads:
+When the launcher is used, the application first loads:
+
+- the browser bundle built from the checked-out `pivotick` submodule;
+- all cluster JSON files from the checked-out `misp-galaxy` submodule.
+
+If those local files are unavailable, the existing download workflow downloads:
 
 - the latest Pivotick release browser bundle from `Pivotick/Pivotick`;
 - a ZIP of the current `main` commit from `MISP/misp-galaxy`.

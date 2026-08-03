@@ -1,0 +1,6 @@
+[submodule "misp-galaxy"]
+	path = misp-galaxy
+	url = https://github.com/MISP/misp-galaxy.git
+[submodule "pivotick"]
+	path = pivotick
+	url = https://github.com/Pivotick/Pivotick.git
