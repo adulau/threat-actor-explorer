@@ -1,0 +1,1141 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>MISP Galaxy Threat Actor Explorer</title>
+  <style>
+    :root {
+      --bg: #09111f;
+      --panel: #101a2b;
+      --panel-2: #142137;
+      --line: #293955;
+      --text: #e9eef8;
+      --muted: #9cabc3;
+      --accent: #67e8f9;
+      --accent-2: #a78bfa;
+      --danger: #fb7185;
+      --success: #4ade80;
+      --warning: #fbbf24;
+      --shadow: 0 12px 36px rgba(0,0,0,.28);
+      --radius: 12px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: var(--bg); color: var(--text); }
+    button, input, select { font: inherit; }
+    button { color: inherit; }
+    a { color: var(--accent); }
+    .app { height: 100%; display: grid; grid-template-rows: 58px 1fr; }
+    header {
+      display: flex; align-items: center; gap: 14px; padding: 0 16px;
+      border-bottom: 1px solid var(--line); background: rgba(9,17,31,.96); z-index: 30;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; min-width: 300px; }
+    .brand-mark { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center;
+      font-weight: 800; color: #08121f; background: linear-gradient(135deg,var(--accent),var(--accent-2)); }
+    .brand h1 { font-size: 16px; margin: 0; line-height: 1.15; }
+    .brand small { color: var(--muted); display: block; margin-top: 2px; }
+    .header-status { flex: 1; display: flex; gap: 8px; align-items: center; min-width: 0; }
+    .pill { border: 1px solid var(--line); border-radius: 999px; padding: 5px 9px; color: var(--muted); font-size: 12px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 360px; }
+    .pill.good { color: var(--success); border-color: rgba(74,222,128,.35); }
+    .pill.warn { color: var(--warning); border-color: rgba(251,191,36,.35); }
+    .header-actions { display: flex; gap: 8px; }
+    .btn { border: 1px solid var(--line); background: var(--panel-2); border-radius: 8px; padding: 8px 11px; cursor: pointer; }
+    .btn:hover { border-color: var(--accent); }
+    .btn.primary { background: #0e7490; border-color: #22d3ee; }
+    .btn.danger { border-color: rgba(251,113,133,.55); color: #fecdd3; }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .workspace { display: grid; grid-template-columns: 300px minmax(420px,1fr) 390px; min-height: 0; }
+    .sidebar, .inspector { background: var(--panel); min-height: 0; display: flex; flex-direction: column; }
+    .sidebar { border-right: 1px solid var(--line); }
+    .inspector { border-left: 1px solid var(--line); }
+    .section { padding: 13px; border-bottom: 1px solid var(--line); }
+    .section-title { margin: 0 0 9px; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+    .input, select { width: 100%; color: var(--text); background: #0b1424; border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; outline: none; }
+    .input:focus, select:focus { border-color: var(--accent); }
+    .actor-list { overflow: auto; min-height: 0; padding: 6px; }
+    .actor-item { padding: 9px 10px; margin: 3px 0; border: 1px solid transparent; border-radius: 8px; cursor: pointer; }
+    .actor-item:hover { background: var(--panel-2); }
+    .actor-item.active { border-color: var(--accent); background: rgba(34,211,238,.09); }
+    .actor-item strong { display: block; font-size: 13px; }
+    .actor-item span { display: block; color: var(--muted); font-size: 11px; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .actor-count { color: var(--muted); font-size: 12px; margin-top: 7px; }
+    .graph-shell { min-width: 0; min-height: 0; position: relative; display: grid; grid-template-rows: auto 1fr; background:
+      radial-gradient(circle at 20% 10%, rgba(103,232,249,.06), transparent 26%),
+      radial-gradient(circle at 90% 80%, rgba(167,139,250,.05), transparent 28%), #070d18; }
+    .toolbar { min-height: 54px; display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--line); background: rgba(9,17,31,.92); z-index: 5; flex-wrap: wrap; }
+    .toolbar label { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+    .toolbar select { width: auto; min-width: 72px; padding: 6px 8px; }
+    .toolbar .grow { flex: 1; }
+    .checks { display: flex; gap: 5px; flex-wrap: wrap; }
+    .kind-check { position: relative; }
+    .kind-check input { position: absolute; opacity: 0; pointer-events: none; }
+    .kind-check span { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line); border-radius: 999px; padding: 5px 8px; font-size: 11px; color: var(--muted); cursor: pointer; }
+    .kind-check input:checked + span { color: var(--text); border-color: var(--kind-color); box-shadow: inset 0 0 0 1px color-mix(in srgb,var(--kind-color),transparent 45%); }
+    #graph { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+    #graph > .pivotick { width: 100%; height: 100%; }
+    .empty-state[hidden] { display: none; }
+    .empty-state { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; color: var(--muted); pointer-events: none; padding: 30px; }
+    .empty-state strong { color: var(--text); display: block; margin-bottom: 6px; }
+    .graph-stats { position: absolute; left: 12px; bottom: 12px; z-index: 8; background: rgba(8,15,28,.85); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; font-size: 11px; color: var(--muted); backdrop-filter: blur(7px); }
+    .legend { position: absolute; right: 12px; bottom: 12px; z-index: 8; background: rgba(8,15,28,.85); border: 1px solid var(--line); border-radius: 8px; padding: 8px; font-size: 11px; backdrop-filter: blur(7px); }
+    .legend-row { display: flex; align-items: center; gap: 7px; margin: 3px 0; color: var(--muted); }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .tabs { display: flex; border-bottom: 1px solid var(--line); }
+    .tab { flex: 1; padding: 11px 5px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; }
+    .tab.active { color: var(--text); border-bottom-color: var(--accent); }
+    .panel-content { overflow: auto; min-height: 0; padding: 13px; }
+    .detail-title { font-size: 18px; margin: 0 0 5px; overflow-wrap: anywhere; }
+    .detail-sub { color: var(--muted); font-size: 12px; margin-bottom: 14px; }
+    .kv { display: grid; grid-template-columns: 112px 1fr; gap: 7px 10px; padding: 8px 0; border-bottom: 1px solid rgba(41,57,85,.65); font-size: 12px; }
+    .kv .key { color: var(--muted); overflow-wrap: anywhere; }
+    .kv .value { overflow-wrap: anywhere; white-space: pre-wrap; }
+    .badge { display: inline-block; padding: 3px 7px; border: 1px solid var(--line); border-radius: 999px; margin: 2px 3px 2px 0; font-size: 11px; }
+    .description { color: #d1d9e8; line-height: 1.5; font-size: 13px; white-space: pre-wrap; }
+    .table-wrap { overflow: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    th { position: sticky; top: 0; background: var(--panel); text-align: left; color: var(--muted); padding: 7px; border-bottom: 1px solid var(--line); z-index: 1; }
+    td { padding: 7px; border-bottom: 1px solid rgba(41,57,85,.55); vertical-align: top; overflow-wrap: anywhere; }
+    tr.clickable { cursor: pointer; }
+    tr.clickable:hover { background: var(--panel-2); }
+    pre { font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; background: #07101d; border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+    .setup-card { max-width: 650px; border: 1px solid var(--line); background: rgba(16,26,43,.96); border-radius: 14px; box-shadow: var(--shadow); padding: 22px; pointer-events: auto; }
+    .setup-card h2 { margin: 0 0 8px; }
+    .setup-card p { color: var(--muted); line-height: 1.5; }
+    .setup-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+    .loading { position: fixed; inset: 58px 0 0; background: rgba(4,9,17,.78); display: none; place-items: center; z-index: 100; backdrop-filter: blur(5px); }
+    .loading.show { display: grid; }
+    .loading-card { width: min(580px, calc(100vw - 30px)); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px; box-shadow: var(--shadow); }
+    .progress { height: 8px; border-radius: 99px; background: #07101d; overflow: hidden; margin: 12px 0 7px; }
+    .progress > div { height: 100%; width: 0; background: linear-gradient(90deg,var(--accent),var(--accent-2)); transition: width .2s; }
+    .loading-message { color: var(--muted); font-size: 12px; }
+    .toast-stack { position: fixed; top: 70px; right: 14px; z-index: 200; display: grid; gap: 8px; }
+    .toast { width: min(390px, calc(100vw - 28px)); padding: 11px 13px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel-2); box-shadow: var(--shadow); font-size: 12px; }
+    .toast.error { border-color: rgba(251,113,133,.7); }
+    .toast.success { border-color: rgba(74,222,128,.55); }
+    .muted { color: var(--muted); }
+    .small { font-size: 11px; }
+    .divider { height: 1px; background: var(--line); margin: 12px 0; }
+    .inspector-actions { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0; }
+    .inspector-actions .btn { font-size: 11px; padding: 6px 8px; }
+    .meta-pivot { display:inline-flex; align-items:center; gap:4px; margin:2px 3px 2px 0; padding:3px 7px; border:1px solid rgba(45,212,191,.45); border-radius:999px; background:rgba(45,212,191,.08); color:var(--text); cursor:pointer; font-size:11px; text-align:left; overflow-wrap:anywhere; }
+    .meta-pivot:hover { border-color:#2dd4bf; background:rgba(45,212,191,.15); }
+    .root-indicator { max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .meta-field-list { max-height:46vh; overflow:auto; border:1px solid var(--line); border-radius:9px; background:#0b1424; }
+    .meta-field-row { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:9px; align-items:start; padding:8px 10px; border-bottom:1px solid rgba(41,57,85,.55); cursor:pointer; }
+    .meta-field-row:last-child { border-bottom:0; }
+    .meta-field-row:hover { background:var(--panel-2); }
+    .meta-field-row strong { display:block; font-size:12px; overflow-wrap:anywhere; }
+    .meta-field-row small { color:var(--muted); display:block; margin-top:2px; }
+    .meta-field-count { color:var(--muted); font-size:11px; white-space:nowrap; }
+    .notice { border: 1px solid rgba(251,191,36,.4); color: #fde68a; background: rgba(251,191,36,.06); border-radius: 8px; padding: 9px; font-size: 11px; line-height: 1.45; }
+
+
+    /* Pivotick custom graph cards. Galaxy data is inserted with textContent, never as HTML. */
+    .misp-graph-node {
+      --node-color: #94a3b8;
+      width: 210px; min-height: 62px; display: flex; align-items: center; gap: 10px;
+      padding: 8px 10px; color: #f8fafc; background: rgba(8,15,28,.96);
+      border: 1px solid color-mix(in srgb, var(--node-color), #ffffff 22%);
+      border-left: 5px solid var(--node-color); border-radius: 11px;
+      box-shadow: 0 7px 20px rgba(2,6,23,.28); font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      pointer-events: none; user-select: none; overflow: hidden;
+    }
+    .misp-graph-node.compact { width: 138px; min-height: 48px; gap: 7px; padding: 6px 8px; border-left-width: 4px; border-radius: 9px; }
+    .misp-graph-node.full { width: 280px; min-height: 62px; }
+    .misp-graph-node.meta { background: rgba(7,35,38,.97); }
+    .misp-graph-node.unresolved { border-style: dashed; opacity: .9; }
+    .misp-graph-node.root {
+      border-color: #67e8f9; border-left-color: var(--node-color);
+      box-shadow: 0 0 0 3px rgba(103,232,249,.34), 0 9px 24px rgba(2,6,23,.34);
+    }
+    .misp-graph-node__icon {
+      flex: 0 0 auto; width: 34px; height: 34px; display: grid; place-items: center;
+      border: 1px solid color-mix(in srgb, var(--node-color), #ffffff 36%); border-radius: 9px;
+      background: color-mix(in srgb, var(--node-color), #07101d 68%); color: #ffffff;
+      font-size: 10px; line-height: 1; font-weight: 800; letter-spacing: .04em;
+    }
+    .misp-graph-node.compact .misp-graph-node__icon { width: 27px; height: 27px; border-radius: 7px; font-size: 9px; }
+    .misp-graph-node.kind-actor .misp-graph-node__icon { clip-path: polygon(25% 4%,75% 4%,100% 50%,75% 96%,25% 96%,0 50%); border-radius: 0; }
+    .misp-graph-node.kind-activity .misp-graph-node__icon { clip-path: polygon(50% 3%,97% 94%,3% 94%); border-radius: 0; padding-top: 7px; }
+    .misp-graph-node.kind-meta .misp-graph-node__icon { border-radius: 50%; }
+    .misp-graph-node__content { min-width: 0; flex: 1; }
+    .misp-graph-node__title {
+      color: #ffffff; font-size: 14px; line-height: 1.22; font-weight: 750; overflow-wrap: anywhere;
+      display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;
+    }
+    .misp-graph-node.compact .misp-graph-node__title { font-size: 12px; -webkit-line-clamp: 2; }
+    .misp-graph-node.full .misp-graph-node__title { display: block; overflow: visible; }
+    .misp-graph-node__subtitle {
+      display: block; margin-top: 4px; color: #cbd5e1; font-size: 10px; line-height: 1.15;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .misp-graph-node.compact .misp-graph-node__subtitle { display: none; }
+    .misp-graph-node__root {
+      display: inline-block; margin-left: 5px; padding: 1px 4px; border-radius: 999px;
+      background: #164e63; color: #cffafe; font-size: 8px; font-weight: 800; vertical-align: 1px; letter-spacing: .04em;
+    }
+    .misp-edge-label {
+      display: inline-flex; align-items: center; justify-content: center; max-width: 210px;
+      padding: 4px 8px; border: 1px solid #64748b; border-radius: 999px;
+      background: rgba(15,23,42,.96); color: #f8fafc; box-shadow: 0 2px 8px rgba(2,6,23,.28);
+      font: 700 11px/1.15 Inter, ui-sans-serif, system-ui, sans-serif; letter-spacing: .01em;
+      text-align: center; white-space: normal; overflow-wrap: anywhere; pointer-events: none; user-select: none;
+    }
+    .misp-edge-label.metadata { border-color: #2dd4bf; background: rgba(6,55,51,.96); color: #ccfbf1; }
+    .misp-edge-label.similar { border-color: #fbbf24; background: rgba(69,44,5,.96); color: #fef3c7; }
+    .misp-edge-label.hidden { display: none; }
+
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+    @media (max-width: 1100px) {
+      .workspace { grid-template-columns: 260px minmax(380px,1fr) 330px; }
+      .brand { min-width: 250px; }
+    }
+    @media (max-width: 820px) {
+      html, body { overflow: auto; }
+      .app { min-height: 100%; height: auto; }
+      .workspace { grid-template-columns: 1fr; grid-template-rows: 430px 620px 520px; }
+      .sidebar { border-right: 0; border-bottom: 1px solid var(--line); }
+      .inspector { border-left: 0; border-top: 1px solid var(--line); }
+      header { flex-wrap: wrap; height: auto; min-height: 68px; padding: 8px; }
+      .header-status { order: 3; width: 100%; }
+      .loading { inset: 0; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">
+      <div class="brand-mark">MG</div>
+      <div><h1>MISP Galaxy Threat Actor Explorer</h1><small>Pivotick graph · browser-only application</small></div>
+    </div>
+    <div class="header-status">
+      <span id="pivotickStatus" class="pill warn">Pivotick: not loaded</span>
+      <span id="mispStatus" class="pill warn">MISP Galaxy: no local cache</span>
+    </div>
+    <div class="header-actions">
+      <button id="updateBtn" class="btn primary" title="Download current data and Pivotick from GitHub">Update</button>
+      <button id="dataBtn" class="btn" title="Import, export, and cache options">Data</button>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <aside class="sidebar">
+      <div class="section">
+        <h2 class="section-title">Threat actors</h2>
+        <input id="actorSearch" class="input" type="search" placeholder="Search names, aliases, UUIDs…" autocomplete="off">
+        <div id="actorCount" class="actor-count">No actors loaded</div>
+      </div>
+      <div id="actorList" class="actor-list"></div>
+    </aside>
+
+    <section class="graph-shell">
+      <div class="toolbar">
+        <label>Depth
+          <select id="depthSelect"><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option><option value="4">4</option><option value="99">All</option></select>
+        </label>
+        <label>Max nodes
+          <select id="maxNodesSelect"><option>75</option><option selected>150</option><option>250</option><option>500</option><option>1000</option></select>
+        </label>
+        <label><input id="reverseToggle" type="checkbox" checked> reverse links</label>
+        <label><input id="metaToggle" type="checkbox"> metadata nodes</label>
+        <label>Nodes
+          <select id="nodeDisplaySelect" title="Choose how graph nodes and their names are displayed"><option value="cards" selected>Readable cards</option><option value="full">Full-name cards</option><option value="compact">Compact cards</option><option value="shapes">Shapes</option></select>
+        </label>
+        <label>Edge labels
+          <select id="edgeLabelSelect" title="Choose which relationship labels are shown"><option value="all" selected>All</option><option value="relationships">Relationships</option><option value="metadata">Metadata</option><option value="none">None</option></select>
+        </label>
+        <button id="metaFieldsBtn" class="btn" title="Choose metadata fields included in the graph">Meta fields (0)</button>
+        <button id="rootBtn" class="btn root-indicator" title="Pivot from the current graph root" hidden></button>
+        <button id="resetRootBtn" class="btn" title="Return to the selected threat actor" hidden>Back to actor</button>
+        <div class="grow"></div>
+        <div id="kindChecks" class="checks" aria-label="Entity type filters"></div>
+        <button id="fitBtn" class="btn" title="Fit graph to viewport">Fit</button>
+      </div>
+      <div id="graph">
+        <div id="emptyState" class="empty-state">
+          <div class="setup-card">
+            <h2>Local-first galaxy exploration</h2>
+            <p>The first run downloads the latest Pivotick browser bundle and a commit-pinned ZIP of the MISP Galaxy repository from GitHub. The data remains in this browser’s IndexedDB for offline reuse.</p>
+            <div class="setup-actions">
+              <button id="firstRunBtn" class="btn primary">Download and initialise</button>
+              <button id="importMispBtnInline" class="btn">Import MISP ZIP</button>
+              <button id="importPivotickBtnInline" class="btn">Import Pivotick bundle</button>
+            </div>
+            <p class="small">No web server, backend, account, or API token is required. Open this HTML file directly in a recent Firefox, Chromium, or Edge browser.</p>
+          </div>
+        </div>
+        <div id="graphStats" class="graph-stats" hidden></div>
+        <div id="legend" class="legend" hidden></div>
+      </div>
+    </section>
+
+    <aside class="inspector">
+      <div class="tabs">
+        <button class="tab active" data-tab="details">Details</button>
+        <button class="tab" data-tab="nodes">Nodes</button>
+        <button class="tab" data-tab="relations">Relations</button>
+        <button class="tab" data-tab="raw">Raw</button>
+      </div>
+      <div id="panelContent" class="panel-content"><p class="muted">Select a threat actor or graph element.</p></div>
+    </aside>
+  </main>
+</div>
+
+<div id="loading" class="loading" role="status" aria-live="polite">
+  <div class="loading-card">
+    <strong id="loadingTitle">Loading</strong>
+    <div class="progress"><div id="progressBar"></div></div>
+    <div id="loadingMessage" class="loading-message"></div>
+  </div>
+</div>
+<div id="toastStack" class="toast-stack"></div>
+
+<input id="mispFileInput" class="sr-only" type="file" accept=".zip,.json,application/zip,application/json">
+<input id="pivotickFileInput" class="sr-only" type="file" accept=".zip,.js,.css,application/zip,text/javascript,text/css" multiple>
+
+<dialog id="dataDialog" style="max-width:720px;width:calc(100% - 30px);background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:14px;padding:0;box-shadow:var(--shadow)">
+  <form method="dialog">
+    <div class="section" style="display:flex;align-items:center;gap:10px"><strong style="flex:1">Local data and exports</strong><button class="btn" value="cancel">Close</button></div>
+    <div class="section">
+      <h3 class="section-title">Update and import</h3>
+      <div class="setup-actions">
+        <button id="dialogUpdateAll" type="button" class="btn primary">Update everything</button>
+        <button id="dialogUpdateMisp" type="button" class="btn">Update MISP Galaxy</button>
+        <button id="dialogUpdatePivotick" type="button" class="btn">Update Pivotick</button>
+        <button id="dialogImportMisp" type="button" class="btn">Import MISP ZIP/JSON</button>
+        <button id="dialogImportPivotick" type="button" class="btn">Import Pivotick ZIP/JS/CSS</button>
+      </div>
+    </div>
+    <div class="section">
+      <h3 class="section-title">Export</h3>
+      <div class="setup-actions">
+        <button id="exportGraphBtn" type="button" class="btn">Visible graph JSON</button>
+        <button id="exportNodesCsvBtn" type="button" class="btn">Visible nodes CSV</button>
+        <button id="exportRelationsCsvBtn" type="button" class="btn">Visible relations CSV</button>
+        <button id="exportActorBtn" type="button" class="btn">Selected actor JSON</button>
+      </div>
+    </div>
+    <div class="section">
+      <h3 class="section-title">Cache</h3>
+      <div id="cacheInfo" class="small muted">Reading cache…</div>
+      <div class="setup-actions"><button id="clearCacheBtn" type="button" class="btn danger">Clear local cache</button></div>
+    </div>
+    <div class="section">
+      <div class="notice">GitHub data is treated as untrusted input. The application escapes metadata before inserting it into the page, and only opens HTTP(S) references. Imported files remain inside this browser profile.</div>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="metaDialog" style="max-width:720px;width:calc(100% - 30px);background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:14px;padding:0;box-shadow:var(--shadow)">
+  <form method="dialog">
+    <div class="section" style="display:flex;align-items:center;gap:10px"><strong style="flex:1">Metadata graph fields</strong><button class="btn" value="cancel">Close</button></div>
+    <div class="section">
+      <p class="small muted" style="margin-top:0">Selected metadata fields become reusable graph nodes. Double-click a metadata node, or use a Pivot button in the inspector, to reveal every galaxy value sharing it.</p>
+      <input id="metaFieldSearch" class="input" type="search" placeholder="Search metadata fields…" autocomplete="off">
+      <div class="setup-actions">
+        <button id="metaRecommendedBtn" type="button" class="btn">Select recommended</button>
+        <button id="metaAllBtn" type="button" class="btn">Select all</button>
+        <button id="metaClearBtn" type="button" class="btn">Clear</button>
+      </div>
+    </div>
+    <div class="section" style="padding-top:0"><div id="metaFieldList" class="meta-field-list"><p class="muted" style="padding:10px">Load MISP Galaxy data to discover metadata fields.</p></div></div>
+    <div class="section" style="display:flex;align-items:center;gap:10px"><span id="metaSelectionSummary" class="small muted" style="flex:1">No fields selected</span><button id="metaApplyBtn" type="button" class="btn primary">Apply to graph</button></div>
+  </form>
+</dialog>
+
+<script>
+'use strict';
+(() => {
+  const APP_VERSION = 3;
+  const INDEX_VERSION = 3;
+  const DB_NAME = 'misp-galaxy-threat-actor-explorer';
+  const DB_VERSION = 1;
+  const STORE = 'cache';
+  const GITHUB = {
+    pivotickLatest: 'https://api.github.com/repos/Pivotick/Pivotick/releases/latest',
+    pivotickReleases: 'https://api.github.com/repos/Pivotick/Pivotick/releases?per_page=10',
+    mispCommit: 'https://api.github.com/repos/MISP/misp-galaxy/commits/main',
+    mispZip: sha => `https://codeload.github.com/MISP/misp-galaxy/zip/${encodeURIComponent(sha)}`,
+    mispZipFallback: sha => `https://api.github.com/repos/MISP/misp-galaxy/zipball/${encodeURIComponent(sha)}`
+  };
+  const KIND_STYLE = {
+    Actor:     { color: '#fb7185', shape: 'hexagon', size: 19 },
+    Activity:  { color: '#fbbf24', shape: 'triangle', size: 16 },
+    Technique: { color: '#a78bfa', shape: 'square', size: 15 },
+    Producer:  { color: '#4ade80', shape: 'square', size: 15 },
+    Tool:      { color: '#38bdf8', shape: 'circle', size: 14 },
+    Meta:      { color: '#2dd4bf', shape: 'square', size: 11 },
+    Other:     { color: '#94a3b8', shape: 'circle', size: 12 },
+    Unresolved:{ color: '#64748b', shape: 'circle', size: 10 }
+  };
+
+  const state = {
+    db: null,
+    records: new Map(),
+    actors: [],
+    reverse: new Map(),
+    selectedActor: null,
+    pivotRoot: null,
+    selectedElement: null,
+    graph: null,
+    visible: { nodes: [], edges: [], truncated: false },
+    activeTab: 'details',
+    pivotickMeta: null,
+    mispMeta: null,
+    metaIndex: new Map(),
+    metaById: new Map(),
+    metaFields: [],
+    selectedMetaFields: new Set(),
+    showMeta: false,
+    nodeDisplayMode: 'cards',
+    edgeLabelMode: 'all',
+    metaFieldSearch: '',
+    enabledKinds: new Set(Object.keys(KIND_STYLE)),
+    actorSearch: '',
+    actorLimit: 250
+  };
+
+  const $ = id => document.getElementById(id);
+  const els = {
+    pivotickStatus: $('pivotickStatus'), mispStatus: $('mispStatus'), updateBtn: $('updateBtn'), dataBtn: $('dataBtn'),
+    actorSearch: $('actorSearch'), actorCount: $('actorCount'), actorList: $('actorList'), graph: $('graph'), emptyState: $('emptyState'),
+    graphStats: $('graphStats'), legend: $('legend'), depth: $('depthSelect'), maxNodes: $('maxNodesSelect'), reverse: $('reverseToggle'),
+    metaToggle: $('metaToggle'), nodeDisplay: $('nodeDisplaySelect'), edgeLabels: $('edgeLabelSelect'), metaFieldsBtn: $('metaFieldsBtn'), rootBtn: $('rootBtn'), resetRootBtn: $('resetRootBtn'),
+    metaDialog: $('metaDialog'), metaFieldSearch: $('metaFieldSearch'), metaFieldList: $('metaFieldList'), metaSelectionSummary: $('metaSelectionSummary'),
+    kindChecks: $('kindChecks'), fitBtn: $('fitBtn'), panel: $('panelContent'), loading: $('loading'), loadingTitle: $('loadingTitle'),
+    loadingMessage: $('loadingMessage'), progress: $('progressBar'), toastStack: $('toastStack'), firstRun: $('firstRunBtn'),
+    mispInput: $('mispFileInput'), pivotickInput: $('pivotickFileInput'), dataDialog: $('dataDialog'), cacheInfo: $('cacheInfo')
+  };
+
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+  }
+  function safeUrl(value) {
+    try { const u = new URL(String(value)); return ['http:','https:'].includes(u.protocol) ? u.href : null; } catch { return null; }
+  }
+  function toArray(value) { return Array.isArray(value) ? value : value == null ? [] : [value]; }
+  function plainValue(value) {
+    if (value == null) return '';
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value);
+    try { return JSON.stringify(value); } catch { return String(value); }
+  }
+  function short(value, length=42) { const s = String(value ?? ''); return s.length > length ? s.slice(0,length-1) + '…' : s; }
+  function bytes(value) {
+    if (!Number.isFinite(value)) return 'unknown';
+    const units = ['B','KB','MB','GB']; let n = value, i = 0;
+    while (n >= 1024 && i < units.length-1) { n /= 1024; i++; }
+    return `${n.toFixed(i ? 1 : 0)} ${units[i]}`;
+  }
+  function fmtDate(value) {
+    if (!value) return 'unknown';
+    const d = new Date(value); return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleString();
+  }
+  function nextFrame() { return new Promise(resolve => requestAnimationFrame(resolve)); }
+  function storageGet(key) { try { return localStorage.getItem(key); } catch { return null; } }
+  function storageSet(key,value) { try { localStorage.setItem(key,value); } catch {} }
+  function unique(values) { return [...new Set(values.filter(v => v != null && v !== ''))]; }
+  function hashString(value) { let h=2166136261; for (let i=0;i<value.length;i++){h^=value.charCodeAt(i);h=Math.imul(h,16777619);} return (h>>>0).toString(36); }
+  function normalizeMetaValue(value) { return plainValue(value).trim().replace(/\s+/g,' ').toLocaleLowerCase(); }
+  function metaKey(field,value) { return `${field}\u0000${normalizeMetaValue(value)}`; }
+  function metaNodeId(field,value) { const normalized=normalizeMetaValue(value); return `meta:${hashString(field+'\u0000'+normalized)}:${encodeURIComponent(field).slice(0,54)}`; }
+  function flattenMetaEntries(value,prefix='meta',out=[]) {
+    if (Array.isArray(value)) { for (const item of value) flattenMetaEntries(item,prefix,out); return out; }
+    if (value && typeof value==='object') { for (const [k,v] of Object.entries(value)) flattenMetaEntries(v,`${prefix}.${k}`,out); return out; }
+    if (value !== null && value !== undefined && plainValue(value).trim() !== '') out.push([prefix,value]);
+    return out;
+  }
+  function recommendedMetaFields(fields=state.metaFields) {
+    const preferred=['meta.country','meta.cfr-suspected-state-sponsor','meta.cfr-target-category','meta.cfr-suspected-victims','meta.cfr-type-of-incident','meta.motive','meta.target-category','meta.sector','meta.region','meta.synonyms'];
+    const available=new Set(fields.map(f=>f.field)); return preferred.filter(f=>available.has(f)).slice(0,7);
+  }
+  function buildMetaIndex() {
+    state.metaIndex=new Map(); state.metaById=new Map(); const fieldStats=new Map();
+    for (const rec of state.records.values()) {
+      const perRecord=new Set();
+      for (const [field,raw] of flattenMetaEntries(rec.meta,'meta')) {
+        const display=plainValue(raw).trim(); const normalized=normalizeMetaValue(raw); if (!normalized) continue;
+        const key=metaKey(field,raw); let entry=state.metaIndex.get(key);
+        if (!entry) { entry={id:metaNodeId(field,raw),field,value:display,normalized,recordUuids:new Set()}; state.metaIndex.set(key,entry); state.metaById.set(entry.id,entry); }
+        entry.recordUuids.add(rec.uuid); perRecord.add(field);
+      }
+      for (const field of perRecord) { const stat=fieldStats.get(field)||{field,recordCount:0,valueKeys:new Set()}; stat.recordCount++; fieldStats.set(field,stat); }
+    }
+    for (const entry of state.metaIndex.values()) fieldStats.get(entry.field)?.valueKeys.add(`${entry.field}\u0000${entry.normalized}`);
+    state.metaFields=[...fieldStats.values()].map(v=>({field:v.field,recordCount:v.recordCount,valueCount:v.valueKeys.size})).sort((a,b)=>b.recordCount-a.recordCount||a.field.localeCompare(b.field));
+    const saved=storageGet('misp-galaxy.metaFields');
+    if (saved) { try { state.selectedMetaFields=new Set(JSON.parse(saved).filter(f=>fieldStats.has(f))); } catch {} }
+    if (!state.selectedMetaFields.size) state.selectedMetaFields=new Set(recommendedMetaFields());
+    updateMetaControls(); renderMetaFieldList();
+  }
+  function metaEntryFor(field,value) { return state.metaIndex.get(metaKey(field,value)); }
+  function metaMemberships(rec) {
+    const found=new Map();
+    for (const [field,value] of flattenMetaEntries(rec.meta,'meta')) {
+      if (!state.selectedMetaFields.has(field)) continue; const entry=metaEntryFor(field,value); if (entry) found.set(entry.id,entry);
+    }
+    return [...found.values()];
+  }
+  function metaNode(entry) { return {id:entry.id,uuid:entry.id,nodeType:'meta',kind:'Meta',value:entry.value,field:entry.field,description:`${entry.recordUuids.size.toLocaleString()} galaxy value(s) share this metadata value.`,recordCount:entry.recordUuids.size,cluster:{type:'metadata',name:entry.field,path:''},meta:{field:entry.field,value:entry.value}}; }
+  function searchable(rec) {
+    return [rec.value, rec.uuid, rec.description, rec.cluster?.type, rec.cluster?.name,
+      ...toArray(rec.synonyms), ...toArray(rec.meta?.synonyms), ...toArray(rec.meta?.aliases), ...toArray(rec.meta?.alias)]
+      .map(v => plainValue(v).toLowerCase()).join(' ');
+  }
+  function classifyRecord(rec) {
+    if (rec.unresolved) return 'Unresolved';
+    const h = [rec.cluster?.type, rec.cluster?.name, rec.value, rec.meta?.type, rec.meta?.category].map(plainValue).join(' ').toLowerCase();
+    if (/threat[- _]?actor|intrusion[- _]?set|activity[- _]?group|\bactor\b/.test(h)) return 'Actor';
+    if (/\bactivity\b|\bcampaign\b|\boperation\b/.test(h)) return 'Activity';
+    if (/attack[- _]?pattern|\btechnique\b|\btactic\b/.test(h)) return 'Technique';
+    if (/\bproducer\b|\bvendor\b|\borganisation\b|\borganization\b/.test(h)) return 'Producer';
+    if (/\bmalware\b|\btool\b|ransomware|backdoor|botnet|stealer|exploit[- _]?kit|\brat\b/.test(h)) return 'Tool';
+    return 'Other';
+  }
+
+  function toast(message, type='') {
+    const div = document.createElement('div'); div.className = `toast ${type}`; div.textContent = message;
+    els.toastStack.appendChild(div); setTimeout(() => div.remove(), 6500);
+  }
+  function loading(show, title='', message='', percent=0) {
+    els.loading.classList.toggle('show', show);
+    if (title) els.loadingTitle.textContent = title;
+    els.loadingMessage.textContent = message;
+    els.progress.style.width = `${Math.max(0,Math.min(100,percent))}%`;
+  }
+  function progress(message, percent) { loading(true, els.loadingTitle.textContent, message, percent); }
+
+  function openDb() {
+    return new Promise((resolve,reject) => {
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = () => { const db = req.result; if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE); };
+      req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error);
+    });
+  }
+  function dbGet(key) {
+    return new Promise((resolve,reject) => { const tx=state.db.transaction(STORE,'readonly'); const r=tx.objectStore(STORE).get(key); r.onsuccess=()=>resolve(r.result); r.onerror=()=>reject(r.error); });
+  }
+  function dbPut(key,value) {
+    return new Promise((resolve,reject) => { const tx=state.db.transaction(STORE,'readwrite'); tx.objectStore(STORE).put(value,key); tx.oncomplete=()=>resolve(); tx.onerror=()=>reject(tx.error); });
+  }
+  function dbDelete(key) {
+    return new Promise((resolve,reject) => { const tx=state.db.transaction(STORE,'readwrite'); tx.objectStore(STORE).delete(key); tx.oncomplete=()=>resolve(); tx.onerror=()=>reject(tx.error); });
+  }
+  function dbClear() {
+    return new Promise((resolve,reject) => { const tx=state.db.transaction(STORE,'readwrite'); tx.objectStore(STORE).clear(); tx.oncomplete=()=>resolve(); tx.onerror=()=>reject(tx.error); });
+  }
+
+  async function fetchJson(url) {
+    const response = await fetch(url, { credentials:'omit', headers:{'Accept':'application/vnd.github+json'} });
+    if (!response.ok) throw new Error(`${response.status} ${response.statusText} while fetching ${url}`);
+    return response.json();
+  }
+  async function fetchBuffer(url, onProgress) {
+    const response = await fetch(url, { credentials:'omit', redirect:'follow' });
+    if (!response.ok) throw new Error(`${response.status} ${response.statusText} while downloading ${url}`);
+    const total = Number(response.headers.get('content-length')) || 0;
+    if (!response.body || !onProgress) return response.arrayBuffer();
+    const reader = response.body.getReader(); const chunks=[]; let received=0;
+    while (true) {
+      const {done,value}=await reader.read(); if (done) break; chunks.push(value); received+=value.length; onProgress(received,total);
+    }
+    const out = new Uint8Array(received); let offset=0; for (const c of chunks) { out.set(c,offset); offset+=c.length; }
+    return out.buffer;
+  }
+
+  class ZipArchive {
+    constructor(buffer) { this.buffer=buffer; this.view=new DataView(buffer); this.bytes=new Uint8Array(buffer); this.files=this.readDirectory(); }
+    readDirectory() {
+      const min=Math.max(0,this.view.byteLength-65557); let eocd=-1;
+      for (let i=this.view.byteLength-22;i>=min;i--) if (this.view.getUint32(i,true)===0x06054b50) { eocd=i; break; }
+      if (eocd<0) throw new Error('ZIP end-of-central-directory record not found.');
+      const count=this.view.getUint16(eocd+10,true); const offset=this.view.getUint32(eocd+16,true); let p=offset; const files=[];
+      for (let i=0;i<count;i++) {
+        if (this.view.getUint32(p,true)!==0x02014b50) throw new Error('Invalid ZIP central directory.');
+        const method=this.view.getUint16(p+10,true), compressedSize=this.view.getUint32(p+20,true), uncompressedSize=this.view.getUint32(p+24,true);
+        const nameLength=this.view.getUint16(p+28,true), extraLength=this.view.getUint16(p+30,true), commentLength=this.view.getUint16(p+32,true);
+        const localOffset=this.view.getUint32(p+42,true); const name=new TextDecoder().decode(this.bytes.slice(p+46,p+46+nameLength));
+        files.push({name,method,compressedSize,uncompressedSize,localOffset}); p += 46+nameLength+extraLength+commentLength;
+      }
+      return files;
+    }
+    list(test=()=>true) { return this.files.filter(f => !f.name.endsWith('/') && test(f.name)); }
+    async read(entry) {
+      const p=entry.localOffset; if (this.view.getUint32(p,true)!==0x04034b50) throw new Error(`Invalid local ZIP header: ${entry.name}`);
+      const nameLength=this.view.getUint16(p+26,true), extraLength=this.view.getUint16(p+28,true), start=p+30+nameLength+extraLength;
+      const compressed=this.bytes.slice(start,start+entry.compressedSize);
+      if (entry.method===0) return compressed;
+      if (entry.method!==8) throw new Error(`Unsupported ZIP compression method ${entry.method}: ${entry.name}`);
+      if (!('DecompressionStream' in window)) throw new Error('This browser does not support DecompressionStream. Use a recent Firefox, Chromium, or Edge browser.');
+      const stream=new Blob([compressed]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+      return new Uint8Array(await new Response(stream).arrayBuffer());
+    }
+    async text(entry) { return new TextDecoder('utf-8').decode(await this.read(entry)); }
+  }
+
+  function findPivotickFiles(zip) {
+    const files=zip.list();
+    const scoreJs = name => {
+      const n=name.toLowerCase(); let s=0;
+      if (n.endsWith('pivotick.iife.js')) s+=100;
+      if (n.includes('iife')) s+=40;
+      if (n.includes('pivotick')) s+=30;
+      if (n.includes('min')) s+=5;
+      return s-name.length/1000;
+    };
+    const js=files.filter(f=>/\.js$/i.test(f.name) && /pivotick|iife/i.test(f.name)).sort((a,b)=>scoreJs(b.name)-scoreJs(a.name))[0];
+    const css=files.filter(f=>/\.css$/i.test(f.name) && /pivotick/i.test(f.name)).sort((a,b)=>a.name.length-b.name.length)[0];
+    return {js,css};
+  }
+  async function injectPivotick(bundle, replace=false) {
+    if (window.Pivotick && !replace) { state.pivotickMeta=bundle.meta; updateStatus(); return; }
+    if (replace) { destroyGraph(); try { delete window.Pivotick; } catch {} }
+    document.getElementById('pivotick-runtime-css')?.remove();
+    document.getElementById('pivotick-runtime-js')?.remove();
+    const style=document.createElement('style'); style.id='pivotick-runtime-css'; style.textContent=bundle.css; document.head.appendChild(style);
+    const blob=new Blob([bundle.js],{type:'text/javascript'}); const url=URL.createObjectURL(blob);
+    await new Promise((resolve,reject)=>{ const script=document.createElement('script'); script.id='pivotick-runtime-js'; script.src=url; script.onload=resolve; script.onerror=()=>reject(new Error('The Pivotick JavaScript bundle could not be executed.')); document.head.appendChild(script); });
+    URL.revokeObjectURL(url);
+    if (!window.Pivotick) throw new Error('The downloaded bundle did not expose the expected global “Pivotick”.');
+    state.pivotickMeta=bundle.meta; updateStatus();
+  }
+  async function loadCachedPivotick() {
+    const bundle=await dbGet('pivotick.bundle'); if (!bundle?.js || !bundle?.css) return false;
+    await injectPivotick(bundle); return true;
+  }
+  async function updatePivotick() {
+    loading(true,'Updating Pivotick','Reading GitHub release metadata…',4);
+    let release;
+    try { release=await fetchJson(GITHUB.pivotickLatest); }
+    catch { const releases=await fetchJson(GITHUB.pivotickReleases); release=releases.find(r=>!r.draft) || releases[0]; }
+    if (!release) throw new Error('No Pivotick GitHub release was found.');
+    const assets=toArray(release.assets);
+    let js='',css='',source='';
+    const directJs=assets.filter(a=>/\.js$/i.test(a.name)).sort((a,b)=>(/iife/i.test(b.name)?1:0)-(/iife/i.test(a.name)?1:0))[0];
+    const directCss=assets.find(a=>/\.css$/i.test(a.name));
+    if (directJs && directCss) {
+      progress(`Downloading ${directJs.name}…`,18); js=new TextDecoder().decode(await fetchBuffer(directJs.browser_download_url));
+      progress(`Downloading ${directCss.name}…`,45); css=new TextDecoder().decode(await fetchBuffer(directCss.browser_download_url)); source=`${directJs.name} + ${directCss.name}`;
+    } else {
+      const archives=assets.filter(a=>/\.zip$/i.test(a.name)).sort((a,b)=>{
+        const rank=n=>(/dist|browser|bundle|pivotick/i.test(n)?10:0)-n.length/1000; return rank(b.name)-rank(a.name);
+      });
+      let lastError;
+      for (const asset of archives) {
+        try {
+          progress(`Downloading Pivotick release asset ${asset.name}…`,18);
+          const buffer=await fetchBuffer(asset.browser_download_url,(r,t)=>progress(`Downloading ${asset.name}: ${bytes(r)}${t?' / '+bytes(t):''}`,18+(t?r/t*35:12)));
+          progress(`Inspecting ${asset.name}…`,58); const zip=new ZipArchive(buffer); const found=findPivotickFiles(zip);
+          if (!found.js || !found.css) throw new Error('No matching Pivotick IIFE JavaScript and CSS files in this archive.');
+          js=await zip.text(found.js); progress(`Extracting ${found.css.name}…`,72); css=await zip.text(found.css); source=asset.name; break;
+        } catch (error) { lastError=error; }
+      }
+      if (!js || !css) throw new Error(`The release did not contain a usable Pivotick browser bundle.${lastError?' '+lastError.message:''} Use “Import Pivotick bundle” with a release ZIP containing pivotick.iife.js and pivotick.css.`);
+    }
+    const bundle={js,css,meta:{tag:release.tag_name||release.name||'unknown',source,downloadedAt:new Date().toISOString(),releaseUrl:release.html_url}};
+    progress('Saving Pivotick locally…',84); await dbPut('pivotick.bundle',bundle); await injectPivotick(bundle,true); progress('Pivotick is ready.',100);
+    toast(`Pivotick ${bundle.meta.tag} saved locally.`, 'success');
+  }
+
+  function normalizeRecord(value, cluster, path) {
+    const known=new Set(['uuid','value','description','meta','related','synonyms']); const extra={};
+    for (const [k,v] of Object.entries(value)) if (!known.has(k)) extra[k]=v;
+    const rec={
+      uuid:String(value.uuid||''), value:String(value.value||value.name||value.uuid||'Unnamed'), description:value.description||'',
+      meta:value.meta && typeof value.meta==='object' ? value.meta : {}, related:Array.isArray(value.related)?value.related:[],
+      synonyms:unique([...toArray(value.synonyms),...toArray(value.meta?.synonyms)]), extra,
+      cluster:{type:cluster.type||'',name:cluster.name||cluster.type||'',description:cluster.description||'',uuid:cluster.uuid||'',version:cluster.version,source:cluster.source||'',authors:cluster.authors||[],path}
+    };
+    rec.kind=classifyRecord(rec); rec.search=searchable(rec); return rec;
+  }
+  function indexFromRecords(records, meta={}) {
+    state.records=new Map();
+    for (const rec of records) {
+      if (!rec?.uuid) continue;
+      rec.kind=rec.kind||classifyRecord(rec); rec.search=rec.search||searchable(rec);
+      if (!state.records.has(rec.uuid)) state.records.set(rec.uuid,rec);
+      else {
+        const existing=state.records.get(rec.uuid); existing.variants=existing.variants||[]; existing.variants.push(rec);
+      }
+    }
+    state.actors=[...state.records.values()].filter(r=>r.cluster?.type==='threat-actor' || /(^|\/)threat-actor\.json$/i.test(r.cluster?.path||''));
+    state.actors.sort((a,b)=>a.value.localeCompare(b.value,undefined,{sensitivity:'base'}));
+    buildReverseIndex(); buildMetaIndex(); state.mispMeta=meta; updateStatus(); renderKindChecks(); renderActorList();
+  }
+  function buildReverseIndex() {
+    state.reverse=new Map();
+    for (const rec of state.records.values()) for (const relation of rec.related||[]) {
+      const dest=String(relation['dest-uuid']||relation.dest_uuid||relation.uuid||''); if (!dest) continue;
+      if (!state.reverse.has(dest)) state.reverse.set(dest,[]); state.reverse.get(dest).push({sourceUuid:rec.uuid,relation});
+    }
+  }
+  async function parseMispArchive(buffer, meta={}) {
+    loading(true,'Indexing MISP Galaxy','Reading ZIP directory…',45);
+    const zip=new ZipArchive(buffer);
+    const files=zip.list(name=>/(^|\/)clusters\/[^/]+\.json$/i.test(name) && !/(^|\/)clusters\/schema/i.test(name));
+    if (!files.length) throw new Error('No clusters/*.json files were found in the selected ZIP.');
+    const records=[]; let actorFileFound=false; let parsedFiles=0, skippedFiles=0;
+    for (let i=0;i<files.length;i++) {
+      const entry=files[i];
+      try {
+        const cluster=JSON.parse(await zip.text(entry));
+        if (!Array.isArray(cluster.values)) { skippedFiles++; continue; }
+        const path=entry.name.replace(/^.*?\/clusters\//,'clusters/');
+        if (/clusters\/threat-actor\.json$/i.test(path)) actorFileFound=true;
+        for (const value of cluster.values) if (value && value.uuid) records.push(normalizeRecord(value,cluster,path));
+        parsedFiles++;
+      } catch (error) { console.warn('Skipped cluster',entry.name,error); skippedFiles++; }
+      if (i%3===0) { progress(`Indexing ${i+1}/${files.length} cluster files · ${records.length.toLocaleString()} values`,45+(i+1)/files.length*42); await nextFrame(); }
+    }
+    if (!actorFileFound) throw new Error('The archive does not contain clusters/threat-actor.json.');
+    const index={version:INDEX_VERSION,createdAt:new Date().toISOString(),records,meta:{...meta,parsedFiles,skippedFiles,recordCount:records.length,archiveBytes:buffer.byteLength}};
+    progress('Saving the normalized UUID index…',91); await dbPut('misp.index',index); await dbPut('misp.archive',buffer);
+    indexFromRecords(records,index.meta); progress(`Indexed ${records.length.toLocaleString()} galaxy values.`,100);
+    return index;
+  }
+  async function parseMispJson(text, fileName='threat-actor.json') {
+    const cluster=JSON.parse(text); if (!Array.isArray(cluster.values)) throw new Error('The JSON file is not a MISP Galaxy cluster.');
+    const records=cluster.values.filter(v=>v?.uuid).map(v=>normalizeRecord(v,cluster,`clusters/${fileName}`));
+    const meta={source:'local JSON import',downloadedAt:new Date().toISOString(),recordCount:records.length,parsedFiles:1,degraded:true};
+    const index={version:INDEX_VERSION,createdAt:new Date().toISOString(),records,meta}; await dbPut('misp.index',index); indexFromRecords(records,meta);
+    toast('A single cluster JSON was imported. Cross-galaxy UUIDs remain unresolved until a full repository ZIP is imported.', 'success');
+  }
+  async function loadCachedMisp() {
+    const index=await dbGet('misp.index'); if (!index || index.version!==INDEX_VERSION || !Array.isArray(index.records)) return false;
+    indexFromRecords(index.records,index.meta||{}); return true;
+  }
+  async function updateMisp() {
+    loading(true,'Updating MISP Galaxy','Resolving the current main-branch commit…',3);
+    const commit=await fetchJson(GITHUB.mispCommit); const sha=commit.sha; if (!sha) throw new Error('GitHub did not return a MISP Galaxy commit SHA.');
+    const meta={sha,shortSha:sha.slice(0,12),commitDate:commit.commit?.committer?.date||commit.commit?.author?.date,commitUrl:commit.html_url,source:'MISP/misp-galaxy main',downloadedAt:new Date().toISOString()};
+    let buffer;
+    const report=(r,t)=>progress(`Downloading repository ZIP: ${bytes(r)}${t?' / '+bytes(t):''}`,7+(t?r/t*35:18));
+    try { buffer=await fetchBuffer(GITHUB.mispZip(sha),report); }
+    catch (first) { console.warn(first); buffer=await fetchBuffer(GITHUB.mispZipFallback(sha),report); }
+    progress(`Downloaded ${bytes(buffer.byteLength)}. Building local index…`,44); await parseMispArchive(buffer,meta);
+    toast(`MISP Galaxy ${meta.shortSha} saved locally.`, 'success');
+  }
+
+  function updateStatus() {
+    if (window.Pivotick) {
+      els.pivotickStatus.textContent=`Pivotick: ${state.pivotickMeta?.tag||'loaded'}`; els.pivotickStatus.className='pill good';
+    } else { els.pivotickStatus.textContent='Pivotick: not loaded'; els.pivotickStatus.className='pill warn'; }
+    if (state.records.size) {
+      const suffix=state.mispMeta?.shortSha?` @ ${state.mispMeta.shortSha}`:(state.mispMeta?.degraded?' · single cluster':'');
+      els.mispStatus.textContent=`MISP Galaxy: ${state.records.size.toLocaleString()} values${suffix}`; els.mispStatus.className='pill good';
+      els.emptyState.hidden=true;
+    } else { els.mispStatus.textContent='MISP Galaxy: no local cache'; els.mispStatus.className='pill warn'; els.emptyState.hidden=false; }
+    updateCacheInfo();
+  }
+  function renderKindChecks() {
+    els.kindChecks.textContent='';
+    for (const [kind,style] of Object.entries(KIND_STYLE)) {
+      if (kind==='Unresolved' || kind==='Meta') continue;
+      const label=document.createElement('label'); label.className='kind-check'; label.style.setProperty('--kind-color',style.color);
+      const input=document.createElement('input'); input.type='checkbox'; input.checked=state.enabledKinds.has(kind);
+      input.addEventListener('change',()=>{ input.checked?state.enabledKinds.add(kind):state.enabledKinds.delete(kind); renderGraph(); });
+      const span=document.createElement('span'); span.innerHTML=`<i style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${style.color}"></i>${escapeHtml(kind)}`;
+      label.append(input,span); els.kindChecks.appendChild(label);
+    }
+  }
+  function renderLegend() {
+    const visibleKinds=new Set(state.visible.nodes.map(n=>n.kind));
+    els.legend.innerHTML=Object.entries(KIND_STYLE).filter(([k])=>k!=='Unresolved' && visibleKinds.has(k)).map(([k,s])=>`<div class="legend-row"><i class="legend-dot" style="background:${s.color}"></i>${escapeHtml(k)}</div>`).join('');
+    els.legend.hidden=!state.visible.nodes.length;
+  }
+  function updateMetaControls() {
+    if (els.metaToggle) els.metaToggle.checked=state.showMeta;
+    if (els.metaFieldsBtn) els.metaFieldsBtn.textContent=`Meta fields (${state.selectedMetaFields.size})`;
+    if (els.metaSelectionSummary) els.metaSelectionSummary.textContent=`${state.selectedMetaFields.size} of ${state.metaFields.length} fields selected`;
+    const rootId=state.pivotRoot||state.selectedActor; const isMeta=state.metaById.has(rootId); const rec=state.records.get(rootId); const entry=state.metaById.get(rootId);
+    if (els.rootBtn) { els.rootBtn.hidden=!rootId; els.rootBtn.textContent=`Root: ${short(isMeta?`${entry.field} = ${entry.value}`:(rec?.value||rootId),34)}`; }
+    if (els.resetRootBtn) els.resetRootBtn.hidden=!state.selectedActor || rootId===state.selectedActor;
+  }
+  function renderMetaFieldList() {
+    if (!els.metaFieldList) return; const q=state.metaFieldSearch.trim().toLowerCase(); const fields=q?state.metaFields.filter(f=>f.field.toLowerCase().includes(q)):state.metaFields;
+    if (!fields.length) { els.metaFieldList.innerHTML='<p class="muted" style="padding:10px">No matching metadata fields.</p>'; updateMetaControls(); return; }
+    els.metaFieldList.innerHTML=fields.map(f=>`<label class="meta-field-row"><input type="checkbox" data-meta-field="${escapeHtml(f.field)}" ${state.selectedMetaFields.has(f.field)?'checked':''}><span><strong>${escapeHtml(f.field)}</strong><small>${f.recordCount.toLocaleString()} records</small></span><span class="meta-field-count">${f.valueCount.toLocaleString()} values</span></label>`).join('');
+    updateMetaControls();
+  }
+  function renderActorList() {
+    const q=state.actorSearch.trim().toLowerCase();
+    const filtered=q?state.actors.filter(a=>a.search.includes(q)):state.actors;
+    els.actorCount.textContent=`${filtered.length.toLocaleString()} of ${state.actors.length.toLocaleString()} actors`;
+    els.actorList.textContent='';
+    const frag=document.createDocumentFragment();
+    for (const actor of filtered.slice(0,state.actorLimit)) {
+      const item=document.createElement('div'); item.className='actor-item'+(state.selectedActor===actor.uuid?' active':''); item.tabIndex=0;
+      const aliases=unique([...actor.synonyms,...toArray(actor.meta?.synonyms),...toArray(actor.meta?.aliases)]).slice(0,5);
+      item.innerHTML=`<strong>${escapeHtml(actor.value)}</strong><span>${escapeHtml(aliases.join(' · ') || actor.cluster.type || actor.uuid)}</span>`;
+      item.addEventListener('click',()=>selectActor(actor.uuid)); item.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();selectActor(actor.uuid);}});
+      frag.appendChild(item);
+    }
+    els.actorList.appendChild(frag);
+    if (filtered.length>state.actorLimit) {
+      const more=document.createElement('button'); more.className='btn'; more.style.margin='8px'; more.textContent=`Show ${Math.min(250,filtered.length-state.actorLimit)} more`;
+      more.onclick=()=>{state.actorLimit+=250;renderActorList();}; els.actorList.appendChild(more);
+    }
+  }
+
+  function relationDest(relation) { return String(relation?.['dest-uuid']||relation?.dest_uuid||relation?.uuid||''); }
+  function unresolved(uuid) { return {uuid,value:`Unresolved ${short(uuid,16)}`,description:'The destination UUID is referenced by a relationship but is not present in the indexed cluster files.',meta:{},related:[],synonyms:[],extra:{},cluster:{type:'unresolved',name:'Unresolved reference',path:''},kind:'Unresolved',unresolved:true}; }
+  function collectNeighborhood(rootId) {
+    const depthLimit=Number(els.depth.value), nodeLimit=Number(els.maxNodes.value), includeReverse=els.reverse.checked;
+    const nodes=new Map(), edges=new Map(), queue=[], seenDepth=new Map(); let truncated=false;
+    const resolveNode=id=>state.records.get(id)||(state.metaById.has(id)?metaNode(state.metaById.get(id)):unresolved(id));
+    const discover=(id,depth)=>{ if(nodes.has(id)) return true; if(nodes.size>=nodeLimit){truncated=true;return false;} const node=resolveNode(id); nodes.set(id,node); seenDepth.set(id,depth); queue.push({id,depth}); return true; };
+    discover(rootId,0);
+    while (queue.length) {
+      const {id,depth}=queue.shift(); if (depth>=depthLimit) continue;
+      const entry=state.metaById.get(id);
+      if (entry) {
+        for (const uuid of entry.recordUuids) {
+          const rec=state.records.get(uuid); if(!rec) continue; if(!discover(uuid,depth+1)) continue;
+          const key=`meta|${uuid}|${entry.id}`; edges.set(key,{id:key,source:uuid,target:entry.id,type:entry.field,edgeKind:'metadata',direction:'metadata',sourceRecord:rec,targetRecord:metaNode(entry),metaEntry:entry,relation:{type:'metadata',field:entry.field,value:entry.value}});
+        }
+        continue;
+      }
+      const rec=state.records.get(id)||unresolved(id);
+      for (const rel of rec.related||[]) {
+        const dest=relationDest(rel); if (!dest || !discover(dest,depth+1)) continue; const target=state.records.get(dest)||unresolved(dest); const key=`${id}|${dest}|${rel.type||'related'}`;
+        edges.set(key,{id:key,source:id,target:dest,type:String(rel.type||'related'),edgeKind:'relationship',relation:rel,direction:'outgoing',sourceRecord:rec,targetRecord:target});
+      }
+      if (includeReverse) for (const inbound of state.reverse.get(id)||[]) {
+        const src=inbound.sourceUuid, sourceRec=state.records.get(src)||unresolved(src), rel=inbound.relation; if(!discover(src,depth+1)) continue; const key=`${src}|${id}|${rel.type||'related'}`;
+        edges.set(key,{id:key,source:src,target:id,type:String(rel.type||'related'),edgeKind:'relationship',relation:rel,direction:'incoming',sourceRecord:sourceRec,targetRecord:rec});
+      }
+      if (state.showMeta) for (const metaEntry of metaMemberships(rec)) {
+        if(!discover(metaEntry.id,depth+1)) continue; const key=`meta|${id}|${metaEntry.id}`;
+        edges.set(key,{id:key,source:id,target:metaEntry.id,type:metaEntry.field,edgeKind:'metadata',direction:'metadata',sourceRecord:rec,targetRecord:metaNode(metaEntry),metaEntry,relation:{type:'metadata',field:metaEntry.field,value:metaEntry.value}});
+      }
+    }
+    const allowed=new Set([...nodes.values()].filter(n=>n.id===rootId || n.uuid===rootId || n.kind==='Meta' || n.unresolved || state.enabledKinds.has(n.kind)).map(n=>n.id||n.uuid));
+    const filteredEdges=[...edges.values()].filter(e=>allowed.has(e.source)&&allowed.has(e.target));
+    const connected=new Set([rootId]); for (const e of filteredEdges){connected.add(e.source);connected.add(e.target);}
+    const filteredNodes=[...nodes.values()].filter(n=>allowed.has(n.id||n.uuid)&&connected.has(n.id||n.uuid));
+    return {nodes:filteredNodes,edges:filteredEdges,truncated,root:resolveNode(rootId),rootId};
+  }
+  function flatMetadata(rec) {
+    const out={Label:rec.value,Kind:rec.kind,'Galaxy type':rec.cluster?.type,'Galaxy name':rec.cluster?.name,UUID:rec.uuid,Description:rec.description};
+    for (const [k,v] of Object.entries(rec.meta||{})) out[`meta.${k}`]=plainValue(v);
+    for (const [k,v] of Object.entries(rec.extra||{})) out[k]=plainValue(v);
+    if (rec.synonyms?.length) out.Synonyms=rec.synonyms.join(', ');
+    out['Source file']=rec.cluster?.path||''; return out;
+  }
+  function tooltipHtmlForNode(rec) {
+    if (rec.nodeType==='meta') return `<div style="max-width:480px"><strong>${escapeHtml(rec.field)}</strong><div style="opacity:.7;margin:2px 0 8px">Metadata value · ${rec.recordCount.toLocaleString()} matching records</div><div style="overflow-wrap:anywhere;white-space:pre-wrap">${escapeHtml(rec.value)}</div><div style="opacity:.65;margin-top:8px">Double-click to pivot.</div></div>`;
+    const rows=Object.entries(flatMetadata(rec)).map(([k,v])=>`<div style="display:grid;grid-template-columns:110px 1fr;gap:6px;margin:3px 0"><span style="opacity:.65">${escapeHtml(k)}</span><span style="overflow-wrap:anywhere;white-space:pre-wrap">${escapeHtml(v)}</span></div>`).join('');
+    return `<div style="max-width:480px;max-height:55vh;overflow:auto"><strong>${escapeHtml(rec.value)}</strong><div style="opacity:.7;margin:2px 0 8px">${escapeHtml(rec.kind)} · ${escapeHtml(rec.cluster?.type||'')}</div>${rows}</div>`;
+  }
+  function tooltipHtmlForEdge(edgeData) {
+    const rel=edgeData.relation||{}; const rows=Object.entries(rel).map(([k,v])=>`<div style="display:grid;grid-template-columns:100px 1fr;gap:6px;margin:3px 0"><span style="opacity:.65">${escapeHtml(k)}</span><span style="overflow-wrap:anywhere">${escapeHtml(plainValue(v))}</span></div>`).join('');
+    return `<div style="max-width:430px;max-height:45vh;overflow:auto"><strong>${escapeHtml(edgeData.type)}</strong><div style="opacity:.7;margin:3px 0 8px">${escapeHtml(edgeData.sourceRecord?.value)} → ${escapeHtml(edgeData.targetRecord?.value)}</div>${rows}</div>`;
+  }
+  function nodeKindMark(kind) {
+    return ({Actor:'TA',Activity:'AC',Technique:'T',Producer:'P',Tool:'TL',Meta:'#',Other:'•',Unresolved:'?'})[kind] || '•';
+  }
+  function nodeSubtitle(rec) {
+    if (rec.nodeType === 'meta') return `${rec.field} · ${rec.recordCount.toLocaleString()} matching record${rec.recordCount === 1 ? '' : 's'}`;
+    return unique([rec.kind,rec.cluster?.type].filter(Boolean)).join(' · ');
+  }
+  function renderReadableNode(node) {
+    const rec=node?.getData?.()?.record;
+    if (!rec) return undefined;
+    const id=rec.id||rec.uuid;
+    const kind=rec.kind||'Other';
+    const style=KIND_STYLE[kind]||KIND_STYLE.Other;
+    const modeClass=state.nodeDisplayMode === 'compact' ? ' compact' : state.nodeDisplayMode === 'full' ? ' full' : '';
+    const card=document.createElement('div');
+    card.className=`misp-graph-node${modeClass} kind-${kind.toLowerCase()}${rec.nodeType === 'meta' ? ' meta' : ''}${rec.unresolved ? ' unresolved' : ''}${id === (state.pivotRoot||state.selectedActor) ? ' root' : ''}`;
+    card.style.setProperty('--node-color',style.color);
+    card.title=rec.nodeType === 'meta' ? `${rec.field}: ${rec.value}` : String(rec.value||'');
+    card.setAttribute('aria-label',card.title);
+
+    const icon=document.createElement('span');
+    icon.className='misp-graph-node__icon';
+    icon.textContent=nodeKindMark(kind);
+
+    const content=document.createElement('span');
+    content.className='misp-graph-node__content';
+    const title=document.createElement('span');
+    title.className='misp-graph-node__title';
+    title.textContent=String(rec.value||id);
+    const subtitle=document.createElement('span');
+    subtitle.className='misp-graph-node__subtitle';
+    subtitle.textContent=nodeSubtitle(rec);
+    if (id === (state.pivotRoot||state.selectedActor)) {
+      const root=document.createElement('span');
+      root.className='misp-graph-node__root';
+      root.textContent='ROOT';
+      subtitle.append(root);
+    }
+    content.append(title,subtitle);
+    card.append(icon,content);
+    return card;
+  }
+  function displayEdgeLabel(edgeRecord) {
+    if (!edgeRecord || state.edgeLabelMode === 'none') return false;
+    const metadata=edgeRecord.edgeKind === 'metadata';
+    if (state.edgeLabelMode === 'metadata') return metadata;
+    if (state.edgeLabelMode === 'relationships') return !metadata;
+    return true;
+  }
+  function renderReadableEdgeLabel(edge) {
+    const edgeRecord=edge?.getData?.()?.edgeRecord;
+    const label=document.createElement('span');
+    const metadata=edgeRecord?.edgeKind === 'metadata';
+    const similar=edgeRecord?.type === 'similar';
+    const visible=displayEdgeLabel(edgeRecord);
+    label.className=`misp-edge-label${metadata ? ' metadata' : ''}${similar ? ' similar' : ''}${visible ? '' : ' hidden'}`;
+    if (visible) {
+      const value=metadata ? String(edgeRecord.type||'metadata').replace(/^meta\./,'') : String(edgeRecord.type||'related');
+      label.textContent=value;
+      label.title=value;
+    }
+    return label;
+  }
+  function getPivotickCtor() {
+    const p=window.Pivotick; return p?.default||p?.Pivotick||p?.Graph||(typeof p==='function'?p:null);
+  }
+  function destroyGraph() {
+    if (state.graph?.destroy) { try { state.graph.destroy(); } catch(e) { console.warn(e); } }
+    state.graph=null; [...els.graph.querySelectorAll('.pivotick')].forEach(n=>n.remove());
+  }
+  function renderGraph() {
+    const rootId=state.pivotRoot||state.selectedActor;
+    if (!rootId || !state.records.size) return;
+    if (!window.Pivotick) { toast('Pivotick is not loaded. Update or import the Pivotick browser bundle.', 'error'); return; }
+    const visible=collectNeighborhood(rootId); state.visible=visible; destroyGraph(); updateMetaControls();
+    const data={
+      nodes:visible.nodes.map(rec=>{
+        const id=rec.id||rec.uuid, s=KIND_STYLE[rec.kind]||KIND_STYLE.Other, isRoot=id===rootId;
+        const shapeLabel=rec.nodeType==='meta'?`${rec.field}: ${rec.value}`:rec.value;
+        return {id,expanded:false,data:{label:rec.value,kind:rec.kind,galaxyType:rec.cluster?.type,uuid:id,record:rec},style:{
+          shape:s.shape,color:s.color,size:isRoot?s.size+5:s.size,strokeColor:isRoot?'#0e7490':'#ffffff',strokeWidth:isRoot?4:2,
+          text:state.nodeDisplayMode==='shapes'?short(shapeLabel,40):'',textColor:'#0f172a',textAnchorPosition:'middle',textHorizontalShift:0,textVerticalShift:-2.0,fontFamily:'system-ui, sans-serif'
+        }};
+      }),
+      edges:visible.edges.map(e=>{ const meta=e.edgeKind==='metadata'; const similar=e.type==='similar'; return {id:e.id,from:e.source,to:e.target,data:{label:meta?e.type.replace(/^meta\./,''):e.type,edgeRecord:e},style:{edge:{strokeColor:meta?'#0f9f8c':(similar?'#d97706':'#475569'),strokeWidth:meta?1.6:(similar?2.5:1.8),opacity:meta?.78:.88,curveStyle:'bidirectional',dashed:meta||similar,rotateLabel:false,markerEnd:'arrow'},label:{backgroundColor:'#0f172af2',fontSize:11,fontFamily:'system-ui, sans-serif',color:'#f8fafc'}}}; })
+    };
+    const Ctor=getPivotickCtor(); if (!Ctor) { toast('Unable to locate the Pivotick constructor in the loaded bundle.','error'); return; }
+    const renderOptions={
+      enableFocusMode:true,enableNodeExpansion:false,zoomEnabled:true,dragEnabled:true,nodeTypeAccessor:n=>n.getData()?.kind,
+      defaultNodeStyle:{textColor:'#0f172a',textVerticalShift:-2.0,textAnchorPosition:'middle'},
+      defaultEdgeStyle:{rotateLabel:false,markerEnd:'arrow'},
+      defaultLabelStyle:{fontSize:11,color:'#f8fafc',backgroundColor:'#0f172af2',labelAccessor:e=>String(e.getData()?.label||'')},
+      renderLabel:renderReadableEdgeLabel
+    };
+    if (state.nodeDisplayMode !== 'shapes') renderOptions.renderNode=renderReadableNode;
+    const options={
+      isDirected:true,
+      simulation:{useWorker:false},
+      render:renderOptions,
+      UI:{mode:'viewer',tooltip:{render:element=>{ const d=element?.getData?.(); if (d?.record) return tooltipHtmlForNode(d.record); if (d?.edgeRecord) return tooltipHtmlForEdge(d.edgeRecord); return ''; }}},
+      callbacks:{
+        onNodeClick:(event,node)=>selectGraphNode(node.id), onNodeSelect:(node)=>selectGraphNode(node.id), onNodeDbclick:(event,node)=>pivotGraphNode(node.id),
+        onEdgeClick:(event,edge)=>selectGraphEdge(edge.getData()?.edgeRecord), onEdgeSelect:(edge)=>selectGraphEdge(edge.getData()?.edgeRecord)
+      }
+    };
+    const attempts=[()=>new Ctor({container:els.graph,data,...options}),()=>new Ctor({container:els.graph,data,options}),()=>new Ctor(els.graph,data,options)]; const errors=[];
+    for (const attempt of attempts) { try { state.graph=attempt(); break; } catch (error) { errors.push(error); [...els.graph.querySelectorAll('.pivotick')].forEach(n=>n.remove()); } }
+    if (!state.graph) { console.error(...errors); toast(`Pivotick could not create the graph: ${errors.at(-1)?.message||'unknown constructor error'}`,'error'); return; }
+    const metaCount=visible.nodes.filter(n=>n.kind==='Meta').length; els.graphStats.hidden=false; els.graphStats.textContent=`${visible.nodes.length} nodes (${metaCount} metadata) · ${visible.edges.length} edges${visible.truncated?' · truncated':''}`;
+    renderLegend(); renderInspector();
+  }
+  function fitGraph() {
+    try {
+      if (state.graph?.renderer?.fitAndCenter) state.graph.renderer.fitAndCenter(1);
+      else if (state.graph?.fitAndCenter) state.graph.fitAndCenter();
+      else toast('Fit is not exposed by this Pivotick bundle.','');
+    } catch(e) { toast(`Could not fit graph: ${e.message}`,'error'); }
+  }
+  function selectActor(uuid) {
+    state.selectedActor=uuid; state.pivotRoot=uuid; state.selectedElement={type:'node',record:state.records.get(uuid)}; storageSet('misp-galaxy.selectedActor',uuid);
+    renderActorList(); updateMetaControls(); renderGraph();
+  }
+  function selectGraphNode(id) { const rec=state.records.get(id)||state.visible.nodes.find(n=>(n.id||n.uuid)===id); if(!rec)return; state.selectedElement={type:rec.nodeType==='meta'?'meta':'node',record:rec}; state.activeTab='details'; syncTabs(); renderInspector(); }
+  function pivotGraphNode(id) {
+    if (state.metaById.has(id)) { const entry=state.metaById.get(id); state.showMeta=true; state.selectedMetaFields.add(entry.field); state.pivotRoot=id; state.selectedElement={type:'meta',record:metaNode(entry)}; storageSet('misp-galaxy.showMeta','true'); storageSet('misp-galaxy.metaFields',JSON.stringify([...state.selectedMetaFields])); }
+    else if (state.records.has(id)) { state.pivotRoot=id; state.selectedElement={type:'node',record:state.records.get(id)}; }
+    else return;
+    updateMetaControls(); renderGraph();
+  }
+  function resetPivotRoot() { if (!state.selectedActor) return; state.pivotRoot=state.selectedActor; state.selectedElement={type:'node',record:state.records.get(state.selectedActor)}; updateMetaControls(); renderGraph(); }
+  function selectGraphEdge(edge) { if(!edge)return; state.selectedElement={type:'edge',record:edge}; state.activeTab='details'; syncTabs(); renderInspector(); }
+
+  function metadataRows(obj,prefix='') {
+    const rows=[];
+    for (const [k,v] of Object.entries(obj||{})) {
+      const key=prefix?`${prefix}.${k}`:k;
+      if (v && typeof v==='object' && !Array.isArray(v)) rows.push(...metadataRows(v,key));
+      else rows.push([key,v]);
+    }
+    return rows;
+  }
+  function renderValue(value) {
+    if (Array.isArray(value)) return value.map(v=>`<span class="badge">${escapeHtml(plainValue(v))}</span>`).join('')||'<span class="muted">empty</span>';
+    const raw=plainValue(value), url=safeUrl(raw); return url?`<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(raw)}</a>`:escapeHtml(raw||'—');
+  }
+  function renderMetaValue(value,field) {
+    const values=Array.isArray(value)?value:[value]; return values.map(v=>{ const entry=metaEntryFor(field,v); const raw=plainValue(v); if(!entry)return `<span class="badge">${escapeHtml(raw)}</span>`; return `<button class="meta-pivot" data-action="pivot-meta" data-id="${escapeHtml(entry.id)}" title="Pivot through ${escapeHtml(field)}">${escapeHtml(raw)} ↗</button>`; }).join('')||'<span class="muted">empty</span>';
+  }
+  function renderNodeDetails(rec) {
+    const rows=[['UUID',rec.uuid],['Kind',rec.kind],['Galaxy type',rec.cluster?.type],['Galaxy name',rec.cluster?.name],['Source file',rec.cluster?.path],['Cluster UUID',rec.cluster?.uuid],['Cluster version',rec.cluster?.version],['Synonyms',unique([...toArray(rec.synonyms),...toArray(rec.meta?.synonyms)])]];
+    const metaRows=metadataRows(rec.meta,'meta'); const extraRows=metadataRows(rec.extra,'record'); const relationCount=(rec.related||[]).length+(state.reverse.get(rec.uuid)||[]).length;
+    return `<h2 class="detail-title">${escapeHtml(rec.value)}</h2><div class="detail-sub">${escapeHtml(rec.cluster?.type||'Unknown galaxy')} · ${relationCount} direct relationship references</div>
+      <div class="inspector-actions"><button class="btn" data-action="pivot-node" data-id="${escapeHtml(rec.uuid)}">Pivot from node</button><button class="btn" data-action="focus-node" data-id="${escapeHtml(rec.uuid)}">Focus graph</button><button class="btn" data-action="copy-uuid" data-id="${escapeHtml(rec.uuid)}">Copy UUID</button><button class="btn" data-action="export-record">Export JSON</button></div>
+      ${rec.description?`<p class="description">${escapeHtml(rec.description)}</p>`:''}
+      ${rows.map(([k,v])=>`<div class="kv"><div class="key">${escapeHtml(k)}</div><div class="value">${renderValue(v)}</div></div>`).join('')}
+      ${metaRows.map(([k,v])=>`<div class="kv"><div class="key">${escapeHtml(k)}</div><div class="value">${renderMetaValue(v,k)}</div></div>`).join('')}
+      ${extraRows.map(([k,v])=>`<div class="kv"><div class="key">${escapeHtml(k)}</div><div class="value">${renderValue(v)}</div></div>`).join('')}`;
+  }
+  function renderMetaDetails(rec) {
+    const entry=state.metaById.get(rec.id||rec.uuid); if(!entry)return '<p class="muted">Metadata value is unavailable.</p>';
+    const matches=[...entry.recordUuids].map(id=>state.records.get(id)).filter(Boolean).sort((a,b)=>a.value.localeCompare(b.value));
+    return `<h2 class="detail-title">${escapeHtml(entry.value)}</h2><div class="detail-sub">Metadata pivot · ${escapeHtml(entry.field)} · ${matches.length.toLocaleString()} matching galaxy values</div>
+      <div class="inspector-actions"><button class="btn primary" data-action="pivot-meta" data-id="${escapeHtml(entry.id)}">Pivot from metadata</button><button class="btn" data-action="copy-meta" data-value="${escapeHtml(entry.value)}">Copy value</button></div>
+      <div class="kv"><div class="key">Field</div><div class="value">${escapeHtml(entry.field)}</div></div><div class="kv"><div class="key">Value</div><div class="value">${escapeHtml(entry.value)}</div></div><div class="kv"><div class="key">Matches</div><div class="value">${matches.length.toLocaleString()}</div></div>
+      <div class="divider"></div><h3 class="section-title">Matching galaxy values</h3>
+      <div class="table-wrap"><table><thead><tr><th>Value</th><th>Kind</th><th>Galaxy</th></tr></thead><tbody>${matches.slice(0,500).map(r=>`<tr class="clickable" data-action="select-node" data-id="${escapeHtml(r.uuid)}"><td>${escapeHtml(r.value)}</td><td>${escapeHtml(r.kind)}</td><td>${escapeHtml(r.cluster?.type||'')}</td></tr>`).join('')}</tbody></table></div>${matches.length>500?`<p class="small muted">Showing the first 500 of ${matches.length.toLocaleString()} matches.</p>`:''}`;
+  }
+  function renderEdgeDetails(edge) {
+    const metadata=edge.edgeKind==='metadata';
+    return `<h2 class="detail-title">${escapeHtml(metadata?'Metadata: '+edge.type:edge.type)}</h2><div class="detail-sub">${metadata?'Metadata connection':'Relationship'}</div>
+      <div class="kv"><div class="key">Source</div><div class="value"><a href="#" data-action="select-node" data-id="${escapeHtml(edge.source)}">${escapeHtml(edge.sourceRecord?.value||edge.source)}</a></div></div>
+      <div class="kv"><div class="key">Target</div><div class="value"><a href="#" data-action="select-node" data-id="${escapeHtml(edge.target)}">${escapeHtml(edge.targetRecord?.value||edge.target)}</a></div></div>
+      ${metadata&&edge.metaEntry?`<div class="inspector-actions"><button class="btn primary" data-action="pivot-meta" data-id="${escapeHtml(edge.metaEntry.id)}">Pivot through value</button></div>`:''}
+      ${metadataRows(edge.relation).map(([k,v])=>`<div class="kv"><div class="key">${escapeHtml(k)}</div><div class="value">${renderValue(v)}</div></div>`).join('')}`;
+  }
+  function renderNodesTable() {
+    if (!state.visible.nodes.length) return '<p class="muted">No visible graph.</p>';
+    return `<div class="table-wrap"><table><thead><tr><th>Value</th><th>Kind</th><th>Galaxy / field</th><th>ID</th></tr></thead><tbody>${state.visible.nodes.map(n=>{const id=n.id||n.uuid;return `<tr class="clickable" data-action="select-node" data-id="${escapeHtml(id)}"><td>${escapeHtml(n.value)}</td><td>${escapeHtml(n.kind)}</td><td>${escapeHtml(n.nodeType==='meta'?n.field:(n.cluster?.type||''))}</td><td>${escapeHtml(id)}</td></tr>`;}).join('')}</tbody></table></div>`;
+  }
+  function renderRelationsTable() {
+    if (!state.visible.edges.length) return '<p class="muted">No visible relationships.</p>';
+    return `<div class="table-wrap"><table><thead><tr><th>Source</th><th>Type</th><th>Target</th></tr></thead><tbody>${state.visible.edges.map((e,i)=>`<tr class="clickable" data-action="select-edge" data-index="${i}"><td>${escapeHtml(e.sourceRecord?.value||e.source)}</td><td>${escapeHtml(e.type)}</td><td>${escapeHtml(e.targetRecord?.value||e.target)}</td></tr>`).join('')}</tbody></table></div>`;
+  }
+  function rawSelection() {
+    if (state.selectedElement?.type==='node' || state.selectedElement?.type==='meta') return state.selectedElement.record;
+    if (state.selectedElement?.type==='edge') return state.selectedElement.record;
+    return {visibleGraph:state.visible,misp:state.mispMeta,pivotick:state.pivotickMeta};
+  }
+  function renderInspector() {
+    let html='';
+    if (state.activeTab==='nodes') html=renderNodesTable();
+    else if (state.activeTab==='relations') html=renderRelationsTable();
+    else if (state.activeTab==='raw') html=`<pre>${escapeHtml(JSON.stringify(rawSelection(),null,2))}</pre>`;
+    else if (state.selectedElement?.type==='node') html=renderNodeDetails(state.selectedElement.record);
+    else if (state.selectedElement?.type==='meta') html=renderMetaDetails(state.selectedElement.record);
+    else if (state.selectedElement?.type==='edge') html=renderEdgeDetails(state.selectedElement.record);
+    else html='<p class="muted">Select a threat actor or graph element.</p>';
+    els.panel.innerHTML=html;
+  }
+  function syncTabs() { document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===state.activeTab)); }
+
+  function download(name,content,type='application/json') {
+    const blob=content instanceof Blob?content:new Blob([content],{type}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
+  function csv(rows) {
+    return rows.map(row=>row.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\r\n');
+  }
+  function exportVisibleGraph() {
+    const out={generatedAt:new Date().toISOString(),root:state.pivotRoot||state.selectedActor,selectedThreatActor:state.selectedActor,settings:{depth:Number(els.depth.value),reverse:els.reverse.checked,maxNodes:Number(els.maxNodes.value),kinds:[...state.enabledKinds],showMetadata:state.showMeta,metadataFields:[...state.selectedMetaFields],nodeDisplayMode:state.nodeDisplayMode,edgeLabelMode:state.edgeLabelMode},nodes:state.visible.nodes,relationships:state.visible.edges.map(({sourceRecord,targetRecord,...e})=>e),sources:{misp:state.mispMeta,pivotick:state.pivotickMeta}};
+    download(`misp-threat-actor-graph-${short(state.selectedActor||'none',12)}.json`,JSON.stringify(out,null,2));
+  }
+  function exportNodesCsv() { download('misp-visible-nodes.csv',csv([['value','kind','galaxy_or_meta_field','id','description'],...state.visible.nodes.map(n=>[n.value,n.kind,n.nodeType==='meta'?n.field:n.cluster?.type,n.id||n.uuid,n.description])]),'text/csv'); }
+  function exportRelationsCsv() { download('misp-visible-relationships.csv',csv([['source_uuid','source_value','relationship','target_uuid','target_value'],...state.visible.edges.map(e=>[e.source,e.sourceRecord?.value,e.type,e.target,e.targetRecord?.value])]),'text/csv'); }
+  function exportSelectedActor() { const rec=state.records.get(state.selectedActor); if(!rec)return toast('No actor selected.','error'); download(`misp-threat-actor-${rec.uuid}.json`,JSON.stringify(rec,null,2)); }
+
+  async function importMispFile(file) {
+    loading(true,'Importing MISP data',`Reading ${file.name}…`,10);
+    if (/\.json$/i.test(file.name)||file.type.includes('json')) await parseMispJson(await file.text(),file.name);
+    else { const buffer=await file.arrayBuffer(); await parseMispArchive(buffer,{source:`local import: ${file.name}`,downloadedAt:new Date().toISOString(),archiveBytes:buffer.byteLength}); }
+    chooseInitialActor(); renderGraph(); loading(false); toast(`${file.name} imported.`, 'success');
+  }
+  async function importPivotickFiles(files) {
+    loading(true,'Importing Pivotick','Reading local files…',10); let js='',css='',source=[...files].map(f=>f.name).join(', ');
+    for (const file of files) {
+      if (/\.zip$/i.test(file.name)) { const zip=new ZipArchive(await file.arrayBuffer()); const found=findPivotickFiles(zip); if(found.js)js=await zip.text(found.js); if(found.css)css=await zip.text(found.css); }
+      else if (/\.js$/i.test(file.name)) js=await file.text(); else if (/\.css$/i.test(file.name)) css=await file.text();
+    }
+    if(!js||!css) throw new Error('Select a ZIP containing both pivotick.iife.js and pivotick.css, or select the JS and CSS files together.');
+    const bundle={js,css,meta:{tag:'local import',source,downloadedAt:new Date().toISOString()}}; await dbPut('pivotick.bundle',bundle); await injectPivotick(bundle,true); loading(false); toast('Pivotick bundle imported and cached.','success'); renderGraph();
+  }
+  async function updateAll() {
+    try {
+      els.updateBtn.disabled=true;
+      if (!window.Pivotick) await updatePivotick(); else {
+        try { await updatePivotick(); } catch(error) { console.warn(error); toast(`Pivotick update failed; continuing with the cached bundle: ${error.message}`,'error'); }
+      }
+      await updateMisp(); chooseInitialActor(); renderGraph();
+    } catch(error) { console.error(error); toast(error.message||String(error),'error'); }
+    finally { loading(false); els.updateBtn.disabled=false; }
+  }
+  async function runTask(task) { try { await task(); } catch(error) { console.error(error); toast(error.message||String(error),'error'); } finally { loading(false); } }
+  function chooseInitialActor() {
+    if (!state.actors.length) return;
+    const saved=storageGet('misp-galaxy.selectedActor');
+    let actor=state.actors.find(a=>a.uuid===saved) || state.actors.find(a=>/^(sofacy|apt28|fancy bear)$/i.test(a.value)) || state.actors.find(a=>(a.related||[]).length>0) || state.actors[0];
+    selectActor(actor.uuid);
+  }
+  async function updateCacheInfo() {
+    if (!state.db) return;
+    const archive=await dbGet('misp.archive').catch(()=>null), index=await dbGet('misp.index').catch(()=>null), bundle=await dbGet('pivotick.bundle').catch(()=>null);
+    els.cacheInfo.innerHTML=`MISP archive: <strong>${archive?bytes(archive.byteLength):'none'}</strong><br>Normalized index: <strong>${index?.records?.length?.toLocaleString()||'none'}</strong> values<br>Pivotick: <strong>${escapeHtml(bundle?.meta?.tag||'none')}</strong><br>Browser database: <code>${DB_NAME}</code>`;
+  }
+
+  function bindEvents() {
+    els.actorSearch.addEventListener('input',()=>{state.actorSearch=els.actorSearch.value;state.actorLimit=250;renderActorList();});
+    [els.depth,els.maxNodes,els.reverse].forEach(el=>el.addEventListener('change',renderGraph)); els.fitBtn.addEventListener('click',fitGraph);
+    els.nodeDisplay.addEventListener('change',()=>{state.nodeDisplayMode=els.nodeDisplay.value;storageSet('misp-galaxy.nodeDisplayMode',state.nodeDisplayMode);renderGraph();});
+    els.edgeLabels.addEventListener('change',()=>{state.edgeLabelMode=els.edgeLabels.value;storageSet('misp-galaxy.edgeLabelMode',state.edgeLabelMode);renderGraph();});
+    els.metaToggle.addEventListener('change',()=>{state.showMeta=els.metaToggle.checked;storageSet('misp-galaxy.showMeta',String(state.showMeta));renderGraph();});
+    els.metaFieldsBtn.addEventListener('click',()=>{renderMetaFieldList();els.metaDialog.showModal();}); els.rootBtn.addEventListener('click',()=>pivotGraphNode(state.pivotRoot||state.selectedActor)); els.resetRootBtn.addEventListener('click',resetPivotRoot);
+    els.metaFieldSearch.addEventListener('input',()=>{state.metaFieldSearch=els.metaFieldSearch.value;renderMetaFieldList();});
+    els.metaFieldList.addEventListener('change',event=>{const input=event.target.closest('[data-meta-field]');if(!input)return;input.checked?state.selectedMetaFields.add(input.dataset.metaField):state.selectedMetaFields.delete(input.dataset.metaField);updateMetaControls();});
+    $('metaRecommendedBtn').onclick=()=>{state.selectedMetaFields=new Set(recommendedMetaFields());renderMetaFieldList();}; $('metaAllBtn').onclick=()=>{state.selectedMetaFields=new Set(state.metaFields.map(f=>f.field));renderMetaFieldList();}; $('metaClearBtn').onclick=()=>{state.selectedMetaFields.clear();renderMetaFieldList();}; $('metaApplyBtn').onclick=()=>{storageSet('misp-galaxy.metaFields',JSON.stringify([...state.selectedMetaFields]));state.showMeta=state.selectedMetaFields.size>0;storageSet('misp-galaxy.showMeta',String(state.showMeta));updateMetaControls();els.metaDialog.close();renderGraph();};
+    els.firstRun.addEventListener('click',updateAll); els.updateBtn.addEventListener('click',updateAll); els.dataBtn.addEventListener('click',()=>{updateCacheInfo();els.dataDialog.showModal();});
+    $('importMispBtnInline').onclick=$('dialogImportMisp').onclick=()=>els.mispInput.click(); $('importPivotickBtnInline').onclick=$('dialogImportPivotick').onclick=()=>els.pivotickInput.click();
+    els.mispInput.addEventListener('change',()=>{const f=els.mispInput.files[0];if(f)runTask(()=>importMispFile(f));els.mispInput.value='';});
+    els.pivotickInput.addEventListener('change',()=>{if(els.pivotickInput.files.length)runTask(()=>importPivotickFiles(els.pivotickInput.files));els.pivotickInput.value='';});
+    $('dialogUpdateAll').onclick=updateAll; $('dialogUpdateMisp').onclick=()=>runTask(async()=>{await updateMisp();chooseInitialActor();renderGraph();}); $('dialogUpdatePivotick').onclick=()=>runTask(async()=>{await updatePivotick();renderGraph();});
+    $('exportGraphBtn').onclick=exportVisibleGraph; $('exportNodesCsvBtn').onclick=exportNodesCsv; $('exportRelationsCsvBtn').onclick=exportRelationsCsv; $('exportActorBtn').onclick=exportSelectedActor;
+    $('clearCacheBtn').onclick=async()=>{if(!confirm('Delete the locally cached Pivotick bundle, MISP archive, and normalized index?'))return;await dbClear();location.reload();};
+    document.querySelectorAll('.tab').forEach(tab=>tab.addEventListener('click',()=>{state.activeTab=tab.dataset.tab;syncTabs();renderInspector();}));
+    els.panel.addEventListener('click',event=>{
+      const target=event.target.closest('[data-action]'); if(!target)return; const action=target.dataset.action;
+      if(action==='select-node'||action==='focus-node'){event.preventDefault();selectGraphNode(target.dataset.id);if(action==='focus-node'&&state.graph?.focusElement){try{const n=state.graph.getNode?.(target.dataset.id);if(n)state.graph.focusElement(n);}catch{}}}
+      if(action==='pivot-node'||action==='pivot-meta'){event.preventDefault();pivotGraphNode(target.dataset.id);}
+      if(action==='select-edge'){selectGraphEdge(state.visible.edges[Number(target.dataset.index)]);}
+      if(action==='copy-uuid'){navigator.clipboard?.writeText(target.dataset.id).then(()=>toast('UUID copied.','success')).catch(()=>toast('Clipboard access was denied.','error'));}
+      if(action==='copy-meta'){navigator.clipboard?.writeText(target.dataset.value).then(()=>toast('Metadata value copied.','success')).catch(()=>toast('Clipboard access was denied.','error'));}
+      if(action==='export-record'&&state.selectedElement?.type==='node'){const r=state.selectedElement.record;download(`misp-galaxy-${r.uuid}.json`,JSON.stringify(r,null,2));}
+    });
+  }
+
+  async function init() {
+    state.showMeta=storageGet('misp-galaxy.showMeta')==='true';
+    const savedNodeDisplay=storageGet('misp-galaxy.nodeDisplayMode');
+    const savedEdgeLabels=storageGet('misp-galaxy.edgeLabelMode');
+    state.nodeDisplayMode=['cards','full','compact','shapes'].includes(savedNodeDisplay)?savedNodeDisplay:'cards';
+    state.edgeLabelMode=['all','relationships','metadata','none'].includes(savedEdgeLabels)?savedEdgeLabels:'all';
+    els.nodeDisplay.value=state.nodeDisplayMode; els.edgeLabels.value=state.edgeLabelMode;
+    bindEvents(); renderKindChecks(); renderLegend(); updateMetaControls();
+    try { state.db=await openDb(); }
+    catch(error) { toast(`IndexedDB is unavailable: ${error.message}. Local caching cannot work.`,'error'); return; }
+    let pivotick=false,misp=false;
+    try { pivotick=await loadCachedPivotick(); } catch(error) { console.warn(error); toast(`Cached Pivotick could not be loaded: ${error.message}`,'error'); }
+    try { misp=await loadCachedMisp(); } catch(error) { console.warn(error); toast(`Cached MISP index could not be loaded: ${error.message}`,'error'); }
+    updateStatus();
+    if (misp) { chooseInitialActor(); if(pivotick)renderGraph(); }
+    if (!pivotick || !misp) toast('Initial data is missing. Use “Download and initialise” or import local release files.');
+  }
+  init();
+})();
+</script>
+</body>
+</html>

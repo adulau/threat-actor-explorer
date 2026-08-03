@@ -1,0 +1,73 @@
+# MISP Galaxy Threat Actor Explorer
+
+A standalone, browser-only HTML/JavaScript application for exploring the MISP `threat-actor` galaxy, UUID-based relationships across every cluster in the MISP Galaxy repository, and shared MISP Galaxy metadata. Graph rendering is performed by Pivotick.
+
+## Run
+
+1. Open `misp-threat-actor-explorer.html` directly in a recent Firefox, Chromium, or Edge browser.
+2. Select **Download and initialise** on first use.
+3. Select a threat actor from the left panel.
+
+No HTTP server, backend, build step, account, or GitHub token is required.
+
+## Local caching
+
+The application downloads:
+
+- the latest Pivotick release browser bundle from `Pivotick/Pivotick`;
+- a ZIP of the current `main` commit from `MISP/misp-galaxy`.
+
+It stores the Pivotick JavaScript/CSS, the raw MISP repository ZIP, and a normalized UUID index in IndexedDB. After the first successful load, the same browser profile can reopen the application without a network connection.
+
+Use **Data** to update, import release files manually, export visible graph data, or clear the cache.
+
+## Metadata pivots
+
+The application creates a local inverted index of the values contained in each record's `meta` object.
+
+- Enable **metadata nodes** in the graph toolbar to add metadata values to the Pivotick graph.
+- Use **Meta fields** to select which fields are represented. The selector shows record and distinct-value counts for every discovered field.
+- Click a metadata value in the inspector to pivot immediately, even when metadata nodes are not currently enabled.
+- Double-click a metadata graph node to use it as the graph root.
+- A metadata root reveals all galaxy records sharing the same field and normalized value.
+- Continue through another record and another metadata field to perform chained pivots.
+- Use **Back to actor** to return to the selected threat actor.
+
+Graph depth applies to both MISP relationships and metadata links. For example, depth 2 can show an actor, its metadata values, and other records sharing those values.
+
+## Graph readability
+
+The graph toolbar includes two display controls:
+
+- **Nodes** — choose readable cards, full-name cards, compact cards, or the original geometric shapes. Readable cards wrap names over multiple lines; full-name cards do not clamp the title. Cards also show the semantic entity class and galaxy type, while metadata cards show their field and match count.
+- **Edge labels** — show all labels, only ordinary relationships, only metadata fields, or no labels. Relationship labels are rendered as high-contrast pills and remain horizontal.
+
+The current graph root has a cyan outline and a **ROOT** marker. Node and edge display preferences are saved in local browser storage and included in graph JSON exports.
+
+## Features
+
+- Threat-actor search across values, aliases, synonyms, descriptions, and UUIDs.
+- Directed outgoing and optional reverse relationship traversal.
+- Configurable depth and graph-size limit.
+- Semantic entity classes: Actor, Activity, Technique, Producer, Tool, Metadata, and Other.
+- Responsive card-based nodes with wrapped or full names, semantic icons, root highlighting, and a geometric-shape fallback.
+- High-contrast, filterable relationship and metadata edge labels.
+- Selectable metadata fields with global value-to-record indexing.
+- Chained pivots between galaxy records and metadata values.
+- Pivotick graph tooltips containing complete flattened metadata.
+- External inspector with full nested metadata, clickable metadata pivots, raw JSON, node table, and relationship table.
+- JSON and CSV exports including metadata graph settings and nodes.
+- Offline cache and manual ZIP/JSON import.
+- Unresolved relationship UUIDs remain visible as placeholder nodes.
+
+## Browser requirements
+
+The app uses IndexedDB, Fetch, Blob URLs, and `DecompressionStream('deflate-raw')` to read GitHub ZIP archives. A recent Firefox, Chromium, or Edge release is recommended.
+
+## Security model
+
+Galaxy metadata is escaped before display. Only `http:` and `https:` references are made clickable. The application does not send imported or cached data to a server.
+
+## Data and library licenses
+
+The application itself is provided as source code in the HTML file. Pivotick and MISP Galaxy retain their respective upstream licenses and attribution. Review the upstream repositories for current license terms.
