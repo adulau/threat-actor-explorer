@@ -138,6 +138,7 @@
     .meta-field-row strong { display:block; font-size:12px; overflow-wrap:anywhere; }
     .meta-field-row small { color:var(--muted); display:block; margin-top:2px; }
     .meta-field-count { color:var(--muted); font-size:11px; white-space:nowrap; }
+    .producer-list { max-height:46vh; overflow:auto; border:1px solid var(--line); border-radius:9px; background:#0b1424; }
     .notice { border: 1px solid rgba(251,191,36,.4); color: #fde68a; background: rgba(251,191,36,.06); border-radius: 8px; padding: 9px; font-size: 11px; line-height: 1.45; }
 
 
@@ -259,6 +260,7 @@
           <select id="edgeLabelSelect" title="Choose which relationship labels are shown"><option value="all" selected>All</option><option value="relationships">Relationships</option><option value="metadata">Metadata</option><option value="none">None</option></select>
         </label>
         <button id="metaFieldsBtn" class="btn" title="Choose metadata fields included in the graph">Meta fields (0)</button>
+        <button id="producerFilterBtn" class="btn" title="Choose whose attributed threat-actor names are shown">Producers: All</button>
         <button id="rootBtn" class="btn root-indicator" title="Pivot from the current graph root" hidden></button>
         <button id="resetRootBtn" class="btn" title="Return to the selected threat actor" hidden>Back to actor</button>
         <div class="grow"></div>
@@ -340,6 +342,19 @@
   </form>
 </dialog>
 
+<dialog id="producerDialog" style="max-width:720px;width:calc(100% - 30px);background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:14px;padding:0;box-shadow:var(--shadow)">
+  <form method="dialog">
+    <div class="section" style="display:flex;align-items:center;gap:10px"><strong style="flex:1">Threat-actor name producers</strong><button class="btn" value="cancel">Close</button></div>
+    <div class="section">
+      <p class="small muted" style="margin-top:0">Filter the names displayed on threat-actor graph nodes using <code>meta.name-attribution</code>. Producer UUIDs are resolved through the MISP producer galaxy. “All” preserves the complete set of names.</p>
+      <input id="producerSearch" class="input" type="search" placeholder="Search producers or UUIDs…" autocomplete="off">
+      <div class="setup-actions"><button id="producerAllBtn" type="button" class="btn">All producers</button><button id="producerClearBtn" type="button" class="btn">Clear selection</button></div>
+    </div>
+    <div class="section" style="padding-top:0"><div id="producerList" class="producer-list"><p class="muted" style="padding:10px">Load MISP Galaxy data to discover name producers.</p></div></div>
+    <div class="section" style="display:flex;align-items:center;gap:10px"><span id="producerSelectionSummary" class="small muted" style="flex:1">All producers</span><button id="producerApplyBtn" type="button" class="btn primary">Apply to graph</button></div>
+  </form>
+</dialog>
+
 <dialog id="metaDialog" style="max-width:720px;width:calc(100% - 30px);background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:14px;padding:0;box-shadow:var(--shadow)">
   <form method="dialog">
     <div class="section" style="display:flex;align-items:center;gap:10px"><strong style="flex:1">Metadata graph fields</strong><button class="btn" value="cancel">Close</button></div>
@@ -410,6 +425,10 @@
     edgeLabelMode: 'all',
     sidebarsHidden: false,
     metaFieldSearch: '',
+    nameProducers: [],
+    selectedProducers: new Set(),
+    allProducers: true,
+    producerSearch: '',
     enabledKinds: new Set(Object.keys(KIND_STYLE)),
     actorSearch: '',
     actorLimit: 250
@@ -422,6 +441,7 @@
     graphStats: $('graphStats'), legend: $('legend'), depth: $('depthSelect'), maxNodes: $('maxNodesSelect'), reverse: $('reverseToggle'),
     metaToggle: $('metaToggle'), nodeDisplay: $('nodeDisplaySelect'), edgeLabels: $('edgeLabelSelect'), metaFieldsBtn: $('metaFieldsBtn'), rootBtn: $('rootBtn'), resetRootBtn: $('resetRootBtn'),
     metaDialog: $('metaDialog'), metaFieldSearch: $('metaFieldSearch'), metaFieldList: $('metaFieldList'), metaSelectionSummary: $('metaSelectionSummary'),
+    producerFilterBtn: $('producerFilterBtn'), producerDialog: $('producerDialog'), producerSearch: $('producerSearch'), producerList: $('producerList'), producerSelectionSummary: $('producerSelectionSummary'),
     kindChecks: $('kindChecks'), fitBtn: $('fitBtn'), panel: $('panelContent'), loading: $('loading'), loadingTitle: $('loadingTitle'),
     loadingMessage: $('loadingMessage'), progress: $('progressBar'), toastStack: $('toastStack'), firstRun: $('firstRunBtn'),
     mispInput: $('mispFileInput'), pivotickInput: $('pivotickFileInput'), dataDialog: $('dataDialog'), cacheInfo: $('cacheInfo')
@@ -467,6 +487,42 @@
   function recommendedMetaFields(fields=state.metaFields) {
     const preferred=['synonyms','meta.country','meta.cfr-suspected-state-sponsor','meta.cfr-target-category','meta.cfr-suspected-victims','meta.cfr-type-of-incident','meta.motive','meta.target-category','meta.sector','meta.region'];
     const available=new Set(fields.map(f=>f.field)); return preferred.filter(f=>available.has(f)).slice(0,7);
+  }
+  function nameAttributions(rec) {
+    const result=[];
+    for (const raw of toArray(rec?.meta?.['name-attribution'])) {
+      const match=String(raw).match(/^(.*):([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
+      if (match && match[1].trim()) result.push({name:match[1].trim(),producerUuid:match[2].toLowerCase()});
+    }
+    return result;
+  }
+  function buildNameProducerIndex() {
+    const counts=new Map();
+    for (const rec of state.actors) for (const attribution of nameAttributions(rec)) counts.set(attribution.producerUuid,(counts.get(attribution.producerUuid)||0)+1);
+    state.nameProducers=[...counts].map(([uuid,nameCount])=>({uuid,name:state.records.get(uuid)?.value||uuid,nameCount})).sort((a,b)=>a.name.localeCompare(b.name,undefined,{sensitivity:'base'}));
+    const saved=storageGet('misp-galaxy.nameProducers');
+    if (saved) try { const value=JSON.parse(saved); state.allProducers=value.all!==false; state.selectedProducers=new Set(toArray(value.uuids).filter(uuid=>counts.has(uuid))); } catch {}
+    renderProducerList(); updateProducerControls();
+  }
+  function graphNames(rec) {
+    if (rec.kind!=='Actor') return [rec.value];
+    const attributed=nameAttributions(rec);
+    if (!attributed.length) return [rec.value];
+    if (state.allProducers) return unique([rec.value,...attributed.map(item=>item.name)]);
+    const selected=attributed.filter(item=>state.selectedProducers.has(item.producerUuid)).map(item=>item.name);
+    return unique(selected.length?selected:['No name from selected producers']);
+  }
+  function updateProducerControls() {
+    const count=state.selectedProducers.size;
+    if (els.producerFilterBtn) els.producerFilterBtn.textContent=state.allProducers?'Producers: All':`Producers: ${count}`;
+    if (els.producerSelectionSummary) els.producerSelectionSummary.textContent=state.allProducers?'All producers selected':`${count} of ${state.nameProducers.length} producers selected`;
+  }
+  function renderProducerList() {
+    if (!els.producerList) return;
+    const q=state.producerSearch.trim().toLowerCase();
+    const producers=q?state.nameProducers.filter(p=>`${p.name} ${p.uuid}`.toLowerCase().includes(q)):state.nameProducers;
+    els.producerList.innerHTML=producers.length?producers.map(p=>`<label class="meta-field-row"><input type="checkbox" data-producer="${escapeHtml(p.uuid)}" ${state.allProducers||state.selectedProducers.has(p.uuid)?'checked':''}><span><strong>${escapeHtml(p.name)}</strong><small>${escapeHtml(p.uuid)}</small></span><span class="meta-field-count">${p.nameCount.toLocaleString()} names</span></label>`).join(''):'<p class="muted" style="padding:10px">No matching name producers.</p>';
+    updateProducerControls();
   }
   function buildMetaIndex() {
     state.metaIndex=new Map(); state.metaById=new Map(); const fieldStats=new Map();
@@ -696,7 +752,7 @@
     }
     state.actors=[...state.records.values()].filter(r=>r.cluster?.type==='threat-actor' || /(^|\/)threat-actor\.json$/i.test(r.cluster?.path||''));
     state.actors.sort((a,b)=>a.value.localeCompare(b.value,undefined,{sensitivity:'base'}));
-    buildReverseIndex(); buildMetaIndex(); state.mispMeta=meta; updateStatus(); renderKindChecks(); renderActorList();
+    buildReverseIndex(); buildMetaIndex(); buildNameProducerIndex(); state.mispMeta=meta; updateStatus(); renderKindChecks(); renderActorList();
   }
   function buildReverseIndex() {
     state.reverse=new Map();
@@ -970,8 +1026,10 @@
     const data={
       nodes:visible.nodes.map(rec=>{
         const id=rec.id||rec.uuid, s=KIND_STYLE[rec.kind]||KIND_STYLE.Other, isRoot=id===rootId;
-        const shapeLabel=rec.nodeType==='meta'?`${rec.field}: ${rec.value}`:rec.value;
-        return {id,expanded:false,data:{label:rec.value,kind:rec.kind,galaxyType:rec.cluster?.type,uuid:id,record:rec},style:{
+        const displayName=rec.nodeType==='meta'?rec.value:graphNames(rec).join(' · ');
+        const shapeLabel=rec.nodeType==='meta'?`${rec.field}: ${rec.value}`:displayName;
+        const graphRecord=displayName===rec.value?rec:{...rec,value:displayName};
+        return {id,expanded:false,data:{label:displayName,kind:rec.kind,galaxyType:rec.cluster?.type,uuid:id,record:graphRecord},style:{
           shape:s.shape,color:s.color,size:isRoot?s.size+5:s.size,strokeColor:isRoot?'#0e7490':'#ffffff',strokeWidth:isRoot?4:2,
           text:state.nodeDisplayMode==='shapes'?short(shapeLabel,40):'',textColor:'#0f172a',textAnchorPosition:'middle',textHorizontalShift:0,textVerticalShift:-2.0,fontFamily:'system-ui, sans-serif'
         }};
@@ -1119,7 +1177,7 @@
     return rows.map(row=>row.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\r\n');
   }
   function exportVisibleGraph() {
-    const out={generatedAt:new Date().toISOString(),root:state.pivotRoot||state.selectedActor,selectedThreatActor:state.selectedActor,settings:{depth:Number(els.depth.value),reverse:els.reverse.checked,maxNodes:Number(els.maxNodes.value),kinds:[...state.enabledKinds],showMetadata:state.showMeta,metadataFields:[...state.selectedMetaFields],nodeDisplayMode:state.nodeDisplayMode,edgeLabelMode:state.edgeLabelMode},nodes:state.visible.nodes,relationships:state.visible.edges.map(({sourceRecord,targetRecord,...e})=>e),sources:{misp:state.mispMeta,pivotick:state.pivotickMeta}};
+    const out={generatedAt:new Date().toISOString(),root:state.pivotRoot||state.selectedActor,selectedThreatActor:state.selectedActor,settings:{depth:Number(els.depth.value),reverse:els.reverse.checked,maxNodes:Number(els.maxNodes.value),kinds:[...state.enabledKinds],showMetadata:state.showMeta,metadataFields:[...state.selectedMetaFields],nameProducers:state.allProducers?'all':[...state.selectedProducers],nodeDisplayMode:state.nodeDisplayMode,edgeLabelMode:state.edgeLabelMode},nodes:state.visible.nodes,relationships:state.visible.edges.map(({sourceRecord,targetRecord,...e})=>e),sources:{misp:state.mispMeta,pivotick:state.pivotickMeta}};
     download(`misp-threat-actor-graph-${short(state.selectedActor||'none',12)}.json`,JSON.stringify(out,null,2));
   }
   function exportNodesCsv() { download('misp-visible-nodes.csv',csv([['value','kind','galaxy_or_meta_field','id','description'],...state.visible.nodes.map(n=>[n.value,n.kind,n.nodeType==='meta'?n.field:n.cluster?.type,n.id||n.uuid,n.description])]),'text/csv'); }
@@ -1172,6 +1230,10 @@
     els.edgeLabels.addEventListener('change',()=>{state.edgeLabelMode=els.edgeLabels.value;storageSet('misp-galaxy.edgeLabelMode',state.edgeLabelMode);renderGraph();});
     els.metaToggle.addEventListener('change',()=>{state.showMeta=els.metaToggle.checked;storageSet('misp-galaxy.showMeta',String(state.showMeta));renderGraph();});
     els.metaFieldsBtn.addEventListener('click',()=>{renderMetaFieldList();els.metaDialog.showModal();}); els.rootBtn.addEventListener('click',()=>pivotGraphNode(state.pivotRoot||state.selectedActor)); els.resetRootBtn.addEventListener('click',resetPivotRoot);
+    els.producerFilterBtn.addEventListener('click',()=>{renderProducerList();els.producerDialog.showModal();});
+    els.producerSearch.addEventListener('input',()=>{state.producerSearch=els.producerSearch.value;renderProducerList();});
+    els.producerList.addEventListener('change',event=>{const input=event.target.closest('[data-producer]');if(!input)return;if(state.allProducers){state.allProducers=false;state.selectedProducers=new Set(state.nameProducers.map(p=>p.uuid));}input.checked?state.selectedProducers.add(input.dataset.producer):state.selectedProducers.delete(input.dataset.producer);renderProducerList();});
+    $('producerAllBtn').onclick=()=>{state.allProducers=true;state.selectedProducers.clear();renderProducerList();}; $('producerClearBtn').onclick=()=>{state.allProducers=false;state.selectedProducers.clear();renderProducerList();}; $('producerApplyBtn').onclick=()=>{storageSet('misp-galaxy.nameProducers',JSON.stringify({all:state.allProducers,uuids:[...state.selectedProducers]}));updateProducerControls();els.producerDialog.close();renderGraph();};
     els.metaFieldSearch.addEventListener('input',()=>{state.metaFieldSearch=els.metaFieldSearch.value;renderMetaFieldList();});
     els.metaFieldList.addEventListener('change',event=>{const input=event.target.closest('[data-meta-field]');if(!input)return;input.checked?state.selectedMetaFields.add(input.dataset.metaField):state.selectedMetaFields.delete(input.dataset.metaField);updateMetaControls();});
     $('metaRecommendedBtn').onclick=()=>{state.selectedMetaFields=new Set(recommendedMetaFields());renderMetaFieldList();}; $('metaAllBtn').onclick=()=>{state.selectedMetaFields=new Set(state.metaFields.map(f=>f.field));renderMetaFieldList();}; $('metaClearBtn').onclick=()=>{state.selectedMetaFields.clear();renderMetaFieldList();}; $('metaApplyBtn').onclick=()=>{storageSet('misp-galaxy.metaFields',JSON.stringify([...state.selectedMetaFields]));state.showMeta=state.selectedMetaFields.size>0;storageSet('misp-galaxy.showMeta',String(state.showMeta));updateMetaControls();els.metaDialog.close();renderGraph();};

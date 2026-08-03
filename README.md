@@ -53,7 +53,9 @@ Graph depth applies to both MISP relationships and metadata links. For example, 
 
 ## Graph readability
 
-The graph toolbar includes two display controls:
+The graph toolbar includes three display controls:
+
+- **Producers** — filter threat-actor names using the producer UUID attached to each `meta.name-attribution` entry. Select one vendor, any combination of vendors, or keep the default **All** view. UUIDs are resolved to names through the MISP `producer` galaxy, and the selection is saved locally and included in graph JSON exports.
 
 - **Nodes** — choose readable cards, full-name cards, compact cards, or the original geometric shapes. Readable cards wrap names over multiple lines; full-name cards do not clamp the title. The card proportions keep connection endpoints visually close to their borders while still leaving room for names, semantic entity classes, and galaxy types. Metadata cards show their field and match count.
 - **Edge labels** — show all labels, only ordinary relationships, only metadata fields, or no labels. Relationship labels use larger, high-contrast pills and remain horizontal, while stronger relationship lines and arrowheads stay legible against the graph canvas.
