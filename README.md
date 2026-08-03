@@ -43,6 +43,7 @@ The application creates a local inverted index of the values contained in each r
 - Enable **metadata nodes** in the graph toolbar to add metadata values to the Pivotick graph.
 - Use **Meta fields** to select which fields are represented. The selector shows record and distinct-value counts for every discovered field.
 - Click a metadata value in the inspector to pivot immediately, even when metadata nodes are not currently enabled.
+- Click any synonym in the actor identity panel to pivot across every galaxy value that shares it. Synonyms are indexed even when MISP supplies them outside the `meta` object.
 - Double-click a metadata graph node to use it as the graph root.
 - A metadata root reveals all galaxy records sharing the same field and normalized value.
 - Continue through another record and another metadata field to perform chained pivots.
@@ -62,6 +63,7 @@ The current graph root has a cyan outline and a **ROOT** marker. Node and edge d
 ## Features
 
 - Threat-actor search across values, aliases, synonyms, descriptions, and UUIDs.
+- A clearly labelled main name and complete, clickable synonym list for every selected threat actor.
 - Directed outgoing and optional reverse relationship traversal.
 - Configurable depth and graph-size limit.
 - Semantic entity classes: Actor, Activity, Technique, Producer, Tool, Metadata, and Other.
