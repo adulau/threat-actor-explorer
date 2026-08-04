@@ -834,7 +834,7 @@
   }
   function actorSynonyms(actor) { return unique([...toArray(actor.synonyms),...toArray(actor.meta?.synonyms),...toArray(actor.meta?.aliases)]); }
   function actorRelationshipCount(actor) { return (actor.related||[]).length+(state.reverse.get(actor.uuid)||[]).length; }
-  function actorSectors(actor) { return unique(toArray(actor.meta?.sector).map(plainValue).filter(Boolean)); }
+  function actorSectors(actor) { return unique(toArray(actor.meta?.['targeted-sector']).map(plainValue).filter(Boolean)); }
   function updateActorSectorOptions() {
     const selected=state.actorSector;
     const sectors=unique(state.actors.flatMap(actorSectors)).sort((a,b)=>a.localeCompare(b,undefined,{sensitivity:'base'}));
