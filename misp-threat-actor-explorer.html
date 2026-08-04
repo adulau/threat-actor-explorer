@@ -45,6 +45,8 @@
     .header-actions { display: flex; gap: 8px; }
     .btn { border: 1px solid var(--line); background: var(--panel-2); border-radius: 8px; padding: 8px 11px; cursor: pointer; }
     .btn:hover { border-color: var(--accent); }
+    .repository-link { display: inline-flex; align-items: center; gap: 6px; color: var(--text); text-decoration: none; }
+    .repository-link svg { width: 16px; height: 16px; fill: currentColor; }
     .btn.primary { background: #0e7490; border-color: #22d3ee; }
     .btn.danger { border-color: rgba(251,113,133,.55); color: #fecdd3; }
     .btn:disabled { opacity: .45; cursor: not-allowed; }
@@ -171,6 +173,12 @@
     .misp-graph-node.kind-activity .misp-graph-node__icon { clip-path: polygon(50% 3%,97% 94%,3% 94%); border-radius: 0; padding-top: 7px; }
     .misp-graph-node.kind-meta .misp-graph-node__icon { border-radius: 50%; }
     .misp-graph-node__content { min-width: 0; flex: 1; }
+    .misp-graph-node__flags {
+      align-self: flex-start; display: inline-flex; flex: 0 0 auto; gap: 2px; max-width: 48px;
+      font-size: 16px; line-height: 1; overflow: hidden; white-space: nowrap;
+      filter: drop-shadow(0 1px 1px rgba(0,0,0,.55));
+    }
+    .misp-graph-node.compact .misp-graph-node__flags { max-width: 38px; font-size: 13px; }
     .misp-graph-node__title {
       color: #ffffff; font-size: 14px; line-height: 1.22; font-weight: 750; overflow-wrap: anywhere;
       display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;
@@ -230,6 +238,10 @@
       <button id="sidebarsBtn" class="btn" type="button" aria-controls="actorSidebar inspectorSidebar" aria-pressed="false" title="Hide the threat actor and details sidebars">Hide sidebars</button>
       <button id="updateBtn" class="btn primary" title="Download current data and Pivotick from GitHub">Update</button>
       <button id="dataBtn" class="btn" title="Import, export, and cache options">Data</button>
+      <a class="btn repository-link" href="https://github.com/adulau/threat-actor-explorer" target="_blank" rel="noopener noreferrer" title="View this project on GitHub" aria-label="View the Threat Actor Explorer source code on GitHub">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .7A11.5 11.5 0 0 0 8.36 23.1c.58.1.79-.25.79-.56v-2.23c-3.22.7-3.9-1.37-3.9-1.37-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.71.08-.71 1.16.08 1.78 1.2 1.78 1.2 1.04 1.77 2.72 1.26 3.38.96.1-.75.4-1.26.74-1.55-2.57-.29-5.28-1.29-5.28-5.68 0-1.26.45-2.28 1.2-3.09-.12-.29-.52-1.47.11-3.05 0 0 .98-.31 3.16 1.18a11 11 0 0 1 5.75 0c2.18-1.49 3.16-1.18 3.16-1.18.63 1.58.23 2.76.11 3.05.75.81 1.2 1.83 1.2 3.09 0 4.4-2.72 5.38-5.3 5.67.42.36.79 1.06.79 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .7Z"/></svg>
+        <span>GitHub</span>
+      </a>
     </div>
   </header>
 
@@ -253,6 +265,7 @@
         </label>
         <label><input id="reverseToggle" type="checkbox" checked> reverse links</label>
         <label><input id="metaToggle" type="checkbox"> metadata nodes</label>
+        <label><input id="countryFlagsToggle" type="checkbox" checked> country flags</label>
         <label>Nodes
           <select id="nodeDisplaySelect" title="Choose how graph nodes and their names are displayed"><option value="cards" selected>Readable cards</option><option value="full">Full-name cards</option><option value="compact">Compact cards</option><option value="shapes">Shapes</option></select>
         </label>
@@ -421,6 +434,7 @@
     metaFields: [],
     selectedMetaFields: new Set(),
     showMeta: false,
+    showCountryFlags: true,
     nodeDisplayMode: 'cards',
     edgeLabelMode: 'all',
     sidebarsHidden: false,
@@ -439,7 +453,7 @@
     pivotickStatus: $('pivotickStatus'), mispStatus: $('mispStatus'), updateBtn: $('updateBtn'), dataBtn: $('dataBtn'), sidebarsBtn: $('sidebarsBtn'), workspace: $('workspace'),
     actorSearch: $('actorSearch'), actorCount: $('actorCount'), actorList: $('actorList'), graph: $('graph'), emptyState: $('emptyState'),
     graphStats: $('graphStats'), legend: $('legend'), depth: $('depthSelect'), maxNodes: $('maxNodesSelect'), reverse: $('reverseToggle'),
-    metaToggle: $('metaToggle'), nodeDisplay: $('nodeDisplaySelect'), edgeLabels: $('edgeLabelSelect'), metaFieldsBtn: $('metaFieldsBtn'), rootBtn: $('rootBtn'), resetRootBtn: $('resetRootBtn'),
+    metaToggle: $('metaToggle'), countryFlags: $('countryFlagsToggle'), nodeDisplay: $('nodeDisplaySelect'), edgeLabels: $('edgeLabelSelect'), metaFieldsBtn: $('metaFieldsBtn'), rootBtn: $('rootBtn'), resetRootBtn: $('resetRootBtn'),
     metaDialog: $('metaDialog'), metaFieldSearch: $('metaFieldSearch'), metaFieldList: $('metaFieldList'), metaSelectionSummary: $('metaSelectionSummary'),
     producerFilterBtn: $('producerFilterBtn'), producerDialog: $('producerDialog'), producerSearch: $('producerSearch'), producerList: $('producerList'), producerSelectionSummary: $('producerSelectionSummary'),
     kindChecks: $('kindChecks'), fitBtn: $('fitBtn'), panel: $('panelContent'), loading: $('loading'), loadingTitle: $('loadingTitle'),
@@ -474,6 +488,48 @@
   function storageGet(key) { try { return localStorage.getItem(key); } catch { return null; } }
   function storageSet(key,value) { try { localStorage.setItem(key,value); } catch {} }
   function unique(values) { return [...new Set(values.filter(v => v != null && v !== ''))]; }
+  const ISO_COUNTRY_CODES=new Set(('AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW').split(' '));
+  const COUNTRY_CODE_ALIASES={
+    'britain':'GB','great britain':'GB','uk':'GB','u.k.':'GB','united kingdom':'GB'
+  };
+  let countryCodeIndex;
+  function buildCountryCodeIndex() {
+    if (countryCodeIndex) return countryCodeIndex;
+    countryCodeIndex=new Map();
+    if (typeof Intl.DisplayNames === 'function') {
+      const names=new Intl.DisplayNames(['en'],{type:'region'});
+      for (let a=65;a<=90;a++) for (let b=65;b<=90;b++) {
+        const code=String.fromCharCode(a,b), name=names.of(code);
+        const key=name?.toLocaleLowerCase();
+        if (name && name!==code && !countryCodeIndex.has(key)) countryCodeIndex.set(key,code);
+      }
+    }
+    const aliases={
+      'bolivia':'BO','brunei':'BN','cape verde':'CV','czech republic':'CZ','democratic republic of the congo':'CD',
+      'drc':'CD','east timor':'TL','iran':'IR','ivory coast':'CI','laos':'LA','moldova':'MD','north korea':'KP',
+      'palestine':'PS','republic of the congo':'CG','russia':'RU','south korea':'KR','syria':'SY','taiwan':'TW',
+      'tanzania':'TZ','the netherlands':'NL','turkey':'TR','uk':'GB','united kingdom':'GB','usa':'US','u.s.':'US',
+      'u.s.a.':'US','united states':'US','venezuela':'VE','vietnam':'VN'
+    };
+    for (const [name,code] of Object.entries({...aliases,...COUNTRY_CODE_ALIASES})) countryCodeIndex.set(name,code);
+    return countryCodeIndex;
+  }
+  function countryCode(value) {
+    const normalized=String(value??'').trim();
+    const indexed=buildCountryCodeIndex().get(normalized.toLocaleLowerCase());
+    if (indexed) return indexed;
+    const code=normalized.toUpperCase();
+    return ISO_COUNTRY_CODES.has(code)?code:'';
+  }
+  function countryFlag(code) {
+    return /^[A-Z]{2}$/.test(code) ? [...code].map(letter=>String.fromCodePoint(127397+letter.charCodeAt(0))).join('') : '';
+  }
+  function recordCountries(rec) {
+    return unique(toArray(rec?.meta?.country).map(plainValue).map(value=>value.trim()).filter(Boolean));
+  }
+  function recordFlags(rec) {
+    return unique(recordCountries(rec).map(countryCode).map(countryFlag).filter(Boolean));
+  }
   function hashString(value) { let h=2166136261; for (let i=0;i<value.length;i++){h^=value.charCodeAt(i);h=Math.imul(h,16777619);} return (h>>>0).toString(36); }
   function normalizeMetaValue(value) { return plainValue(value).trim().replace(/\s+/g,' ').toLocaleLowerCase(); }
   function metaKey(field,value) { return `${field}\u0000${normalizeMetaValue(value)}`; }
@@ -988,6 +1044,15 @@
     }
     content.append(title,subtitle);
     card.append(icon,content);
+    const flags=state.showCountryFlags?recordFlags(rec):[];
+    if (flags.length) {
+      const flag=document.createElement('span');
+      flag.className='misp-graph-node__flags';
+      flag.textContent=flags.slice(0,3).join('');
+      flag.title=`Country: ${recordCountries(rec).join(', ')}`;
+      flag.setAttribute('aria-label',flag.title);
+      card.append(flag);
+    }
     return card;
   }
   function displayEdgeLabel(edgeRecord) {
@@ -1027,7 +1092,8 @@
       nodes:visible.nodes.map(rec=>{
         const id=rec.id||rec.uuid, s=KIND_STYLE[rec.kind]||KIND_STYLE.Other, isRoot=id===rootId;
         const displayName=rec.nodeType==='meta'?rec.value:graphNames(rec).join(' · ');
-        const shapeLabel=rec.nodeType==='meta'?`${rec.field}: ${rec.value}`:displayName;
+        const flags=state.showCountryFlags?recordFlags(rec).slice(0,3).join(''):'';
+        const shapeLabel=rec.nodeType==='meta'?`${rec.field}: ${rec.value}`:`${flags}${flags?' ':''}${displayName}`;
         const graphRecord=displayName===rec.value?rec:{...rec,value:displayName};
         return {id,expanded:false,data:{label:displayName,kind:rec.kind,galaxyType:rec.cluster?.type,uuid:id,record:graphRecord},style:{
           shape:s.shape,color:s.color,size:isRoot?s.size+5:s.size,strokeColor:isRoot?'#0e7490':'#ffffff',strokeWidth:isRoot?4:2,
@@ -1177,7 +1243,7 @@
     return rows.map(row=>row.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\r\n');
   }
   function exportVisibleGraph() {
-    const out={generatedAt:new Date().toISOString(),root:state.pivotRoot||state.selectedActor,selectedThreatActor:state.selectedActor,settings:{depth:Number(els.depth.value),reverse:els.reverse.checked,maxNodes:Number(els.maxNodes.value),kinds:[...state.enabledKinds],showMetadata:state.showMeta,metadataFields:[...state.selectedMetaFields],nameProducers:state.allProducers?'all':[...state.selectedProducers],nodeDisplayMode:state.nodeDisplayMode,edgeLabelMode:state.edgeLabelMode},nodes:state.visible.nodes,relationships:state.visible.edges.map(({sourceRecord,targetRecord,...e})=>e),sources:{misp:state.mispMeta,pivotick:state.pivotickMeta}};
+    const out={generatedAt:new Date().toISOString(),root:state.pivotRoot||state.selectedActor,selectedThreatActor:state.selectedActor,settings:{depth:Number(els.depth.value),reverse:els.reverse.checked,maxNodes:Number(els.maxNodes.value),kinds:[...state.enabledKinds],showMetadata:state.showMeta,showCountryFlags:state.showCountryFlags,metadataFields:[...state.selectedMetaFields],nameProducers:state.allProducers?'all':[...state.selectedProducers],nodeDisplayMode:state.nodeDisplayMode,edgeLabelMode:state.edgeLabelMode},nodes:state.visible.nodes,relationships:state.visible.edges.map(({sourceRecord,targetRecord,...e})=>e),sources:{misp:state.mispMeta,pivotick:state.pivotickMeta}};
     download(`misp-threat-actor-graph-${short(state.selectedActor||'none',12)}.json`,JSON.stringify(out,null,2));
   }
   function exportNodesCsv() { download('misp-visible-nodes.csv',csv([['value','kind','galaxy_or_meta_field','id','description'],...state.visible.nodes.map(n=>[n.value,n.kind,n.nodeType==='meta'?n.field:n.cluster?.type,n.id||n.uuid,n.description])]),'text/csv'); }
@@ -1229,6 +1295,7 @@
     els.nodeDisplay.addEventListener('change',()=>{state.nodeDisplayMode=els.nodeDisplay.value;storageSet('misp-galaxy.nodeDisplayMode',state.nodeDisplayMode);renderGraph();});
     els.edgeLabels.addEventListener('change',()=>{state.edgeLabelMode=els.edgeLabels.value;storageSet('misp-galaxy.edgeLabelMode',state.edgeLabelMode);renderGraph();});
     els.metaToggle.addEventListener('change',()=>{state.showMeta=els.metaToggle.checked;storageSet('misp-galaxy.showMeta',String(state.showMeta));renderGraph();});
+    els.countryFlags.addEventListener('change',()=>{state.showCountryFlags=els.countryFlags.checked;storageSet('misp-galaxy.showCountryFlags',String(state.showCountryFlags));renderGraph();});
     els.metaFieldsBtn.addEventListener('click',()=>{renderMetaFieldList();els.metaDialog.showModal();}); els.rootBtn.addEventListener('click',()=>pivotGraphNode(state.pivotRoot||state.selectedActor)); els.resetRootBtn.addEventListener('click',resetPivotRoot);
     els.producerFilterBtn.addEventListener('click',()=>{renderProducerList();els.producerDialog.showModal();});
     els.producerSearch.addEventListener('input',()=>{state.producerSearch=els.producerSearch.value;renderProducerList();});
@@ -1258,12 +1325,13 @@
 
   async function init() {
     state.showMeta=storageGet('misp-galaxy.showMeta')==='true';
+    state.showCountryFlags=storageGet('misp-galaxy.showCountryFlags')!=='false';
     state.sidebarsHidden=storageGet('misp-galaxy.sidebarsHidden')==='true';
     const savedNodeDisplay=storageGet('misp-galaxy.nodeDisplayMode');
     const savedEdgeLabels=storageGet('misp-galaxy.edgeLabelMode');
     state.nodeDisplayMode=['cards','full','compact','shapes'].includes(savedNodeDisplay)?savedNodeDisplay:'cards';
     state.edgeLabelMode=['all','relationships','metadata','none'].includes(savedEdgeLabels)?savedEdgeLabels:'all';
-    els.nodeDisplay.value=state.nodeDisplayMode; els.edgeLabels.value=state.edgeLabelMode;
+    els.nodeDisplay.value=state.nodeDisplayMode; els.edgeLabels.value=state.edgeLabelMode; els.countryFlags.checked=state.showCountryFlags;
     bindEvents(); updateSidebars(); renderKindChecks(); renderLegend(); updateMetaControls();
     try { state.db=await openDb(); }
     catch(error) { toast(`IndexedDB is unavailable: ${error.message}. Local caching cannot work.`,'error'); return; }

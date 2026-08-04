@@ -58,6 +58,7 @@ The graph toolbar includes three display controls:
 - **Producers** — filter threat-actor names using the producer UUID attached to each `meta.name-attribution` entry. Select one vendor, any combination of vendors, or keep the default **All** view. UUIDs are resolved to names through the MISP `producer` galaxy, and the selection is saved locally and included in graph JSON exports.
 
 - **Nodes** — choose readable cards, full-name cards, compact cards, or the original geometric shapes. Readable cards wrap names over multiple lines; full-name cards do not clamp the title. The card proportions keep connection endpoints visually close to their borders while still leaving room for names, semantic entity classes, and galaxy types. Metadata cards show their field and match count.
+- **Country flags** — show a small flag on graph nodes whose cluster metadata contains a recognized `meta.country` value. Country names and ISO 3166-1 alpha-2 codes are recognized, and common United Kingdom forms such as `UK`, `GB`, and `Great Britain` are normalized to `GB`. Unknown two-letter values are ignored rather than rendered as invalid flags. Flags are enabled by default, can be disabled from the toolbar, and the preference is saved locally. Shape-mode labels receive the same optional flag prefix.
 - **Edge labels** — show all labels, only ordinary relationships, only metadata fields, or no labels. Relationship labels use larger, high-contrast pills and remain horizontal, while stronger relationship lines and arrowheads stay legible against the graph canvas.
 
 Pivotick runs in its **full UI mode**, so its complete graph control surface is also available. Use Pivotick's View controls to switch layouts and reorder the graph, tune or pause the force physics, change grid settings, fit or zoom the viewport, and access the remaining graph tools.
@@ -71,7 +72,7 @@ The current graph root has a cyan outline and a **ROOT** marker. Node and edge d
 - Directed outgoing and optional reverse relationship traversal.
 - Configurable depth and graph-size limit.
 - Semantic entity classes: Actor, Activity, Technique, Producer, Tool, Metadata, and Other.
-- Responsive card-based nodes with wrapped or full names, semantic icons, root highlighting, and a geometric-shape fallback.
+- Responsive card-based nodes with wrapped or full names, semantic icons, optional country flags, root highlighting, and a geometric-shape fallback.
 - High-contrast, filterable relationship and metadata edge labels.
 - Selectable metadata fields with global value-to-record indexing.
 - Chained pivots between galaxy records and metadata values.
