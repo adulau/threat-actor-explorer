@@ -2,6 +2,8 @@
 
 A standalone, browser-only HTML/JavaScript application for exploring the MISP `threat-actor` galaxy, UUID-based relationships across every cluster in the MISP Galaxy repository, and shared MISP Galaxy metadata. Graph rendering is performed by Pivotick.
 
+<img width="1766" height="1020" alt="image" src="https://github.com/user-attachments/assets/3b5abdeb-9f45-4686-98ae-0f4a72075156" />
+
 ## Run with the bundled repositories
 
 Clone with its submodules and start the local server:
