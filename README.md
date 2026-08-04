@@ -70,6 +70,7 @@ The current graph root has a cyan outline and a **ROOT** marker. Node and edge d
 ## Features
 
 - Threat-actor search across values, aliases, synonyms, descriptions, and UUIDs, with sidebar filters for minimum relationship count, minimum synonym count, and sector.
+- Shareable URL anchors that restore the selected threat actor when a link is opened and support browser back/forward navigation between selections.
 - A clearly labelled main name and complete, clickable synonym list for every selected threat actor.
 - Directed outgoing and optional reverse relationship traversal.
 - Configurable depth and graph-size limit.
