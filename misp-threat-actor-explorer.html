@@ -68,6 +68,13 @@
     .actor-item strong { display: block; font-size: 13px; }
     .actor-item span { display: block; color: var(--muted); font-size: 11px; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .actor-count { color: var(--muted); font-size: 12px; margin-top: 7px; }
+    .actor-filters { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 9px; }
+    .actor-filter { min-width: 0; color: var(--muted); font-size: 11px; }
+    .actor-filter span { display: block; margin-bottom: 4px; }
+    .actor-filter .input, .actor-filter select { padding: 7px 8px; }
+    .actor-filter.sector { grid-column: 1 / -1; }
+    .actor-filter-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+    .actor-filter-actions .btn { padding: 5px 8px; font-size: 11px; }
     .graph-shell { min-width: 0; min-height: 0; position: relative; display: grid; grid-template-rows: auto 1fr; background:
       radial-gradient(circle at 20% 10%, rgba(103,232,249,.06), transparent 26%),
       radial-gradient(circle at 90% 80%, rgba(167,139,250,.05), transparent 28%), #070d18; }
@@ -250,7 +257,12 @@
       <div class="section">
         <h2 class="section-title">Threat actors</h2>
         <input id="actorSearch" class="input" type="search" placeholder="Search names, aliases, UUIDs…" autocomplete="off">
-        <div id="actorCount" class="actor-count">No actors loaded</div>
+        <div class="actor-filters" aria-label="Threat actor filters">
+          <label class="actor-filter"><span>Min. relationships</span><input id="relationshipFilter" class="input" type="number" min="0" step="1" inputmode="numeric" placeholder="Any"></label>
+          <label class="actor-filter"><span>Min. synonyms</span><input id="synonymFilter" class="input" type="number" min="0" step="1" inputmode="numeric" placeholder="Any"></label>
+          <label class="actor-filter sector"><span>Sector</span><select id="sectorFilter"><option value="">All sectors</option></select></label>
+        </div>
+        <div class="actor-filter-actions"><div id="actorCount" class="actor-count">No actors loaded</div><button id="clearActorFilters" class="btn" type="button">Clear filters</button></div>
       </div>
       <div id="actorList" class="actor-list"></div>
     </aside>
@@ -445,13 +457,16 @@
     producerSearch: '',
     enabledKinds: new Set(Object.keys(KIND_STYLE)),
     actorSearch: '',
+    minRelationships: 0,
+    minSynonyms: 0,
+    actorSector: '',
     actorLimit: 250
   };
 
   const $ = id => document.getElementById(id);
   const els = {
     pivotickStatus: $('pivotickStatus'), mispStatus: $('mispStatus'), updateBtn: $('updateBtn'), dataBtn: $('dataBtn'), sidebarsBtn: $('sidebarsBtn'), workspace: $('workspace'),
-    actorSearch: $('actorSearch'), actorCount: $('actorCount'), actorList: $('actorList'), graph: $('graph'), emptyState: $('emptyState'),
+    actorSearch: $('actorSearch'), relationshipFilter: $('relationshipFilter'), synonymFilter: $('synonymFilter'), sectorFilter: $('sectorFilter'), clearActorFilters: $('clearActorFilters'), actorCount: $('actorCount'), actorList: $('actorList'), graph: $('graph'), emptyState: $('emptyState'),
     graphStats: $('graphStats'), legend: $('legend'), depth: $('depthSelect'), maxNodes: $('maxNodesSelect'), reverse: $('reverseToggle'),
     metaToggle: $('metaToggle'), countryFlags: $('countryFlagsToggle'), nodeDisplay: $('nodeDisplaySelect'), edgeLabels: $('edgeLabelSelect'), metaFieldsBtn: $('metaFieldsBtn'), rootBtn: $('rootBtn'), resetRootBtn: $('resetRootBtn'),
     metaDialog: $('metaDialog'), metaFieldSearch: $('metaFieldSearch'), metaFieldList: $('metaFieldList'), metaSelectionSummary: $('metaSelectionSummary'),
@@ -808,7 +823,7 @@
     }
     state.actors=[...state.records.values()].filter(r=>r.cluster?.type==='threat-actor' || /(^|\/)threat-actor\.json$/i.test(r.cluster?.path||''));
     state.actors.sort((a,b)=>a.value.localeCompare(b.value,undefined,{sensitivity:'base'}));
-    buildReverseIndex(); buildMetaIndex(); buildNameProducerIndex(); state.mispMeta=meta; updateStatus(); renderKindChecks(); renderActorList();
+    buildReverseIndex(); updateActorSectorOptions(); buildMetaIndex(); buildNameProducerIndex(); state.mispMeta=meta; updateStatus(); renderKindChecks(); renderActorList();
   }
   function buildReverseIndex() {
     state.reverse=new Map();
@@ -816,6 +831,16 @@
       const dest=String(relation['dest-uuid']||relation.dest_uuid||relation.uuid||''); if (!dest) continue;
       if (!state.reverse.has(dest)) state.reverse.set(dest,[]); state.reverse.get(dest).push({sourceUuid:rec.uuid,relation});
     }
+  }
+  function actorSynonyms(actor) { return unique([...toArray(actor.synonyms),...toArray(actor.meta?.synonyms),...toArray(actor.meta?.aliases)]); }
+  function actorRelationshipCount(actor) { return (actor.related||[]).length+(state.reverse.get(actor.uuid)||[]).length; }
+  function actorSectors(actor) { return unique(toArray(actor.meta?.sector).map(plainValue).filter(Boolean)); }
+  function updateActorSectorOptions() {
+    const selected=state.actorSector;
+    const sectors=unique(state.actors.flatMap(actorSectors)).sort((a,b)=>a.localeCompare(b,undefined,{sensitivity:'base'}));
+    els.sectorFilter.replaceChildren(new Option('All sectors',''),...sectors.map(sector=>new Option(sector,sector.toLowerCase())));
+    els.sectorFilter.value=selected;
+    if (els.sectorFilter.value!==selected) state.actorSector='';
   }
   async function parseMispArchive(buffer, meta={}) {
     loading(true,'Indexing MISP Galaxy','Reading ZIP directory…',45);
@@ -932,13 +957,16 @@
   }
   function renderActorList() {
     const q=state.actorSearch.trim().toLowerCase();
-    const filtered=q?state.actors.filter(a=>a.search.includes(q)):state.actors;
+    const filtered=state.actors.filter(actor=>(!q||actor.search.includes(q))
+      && actorRelationshipCount(actor)>=state.minRelationships
+      && actorSynonyms(actor).length>=state.minSynonyms
+      && (!state.actorSector||actorSectors(actor).some(sector=>sector.toLowerCase()===state.actorSector)));
     els.actorCount.textContent=`${filtered.length.toLocaleString()} of ${state.actors.length.toLocaleString()} actors`;
     els.actorList.textContent='';
     const frag=document.createDocumentFragment();
     for (const actor of filtered.slice(0,state.actorLimit)) {
       const item=document.createElement('div'); item.className='actor-item'+(state.selectedActor===actor.uuid?' active':''); item.tabIndex=0;
-      const aliases=unique([...actor.synonyms,...toArray(actor.meta?.synonyms),...toArray(actor.meta?.aliases)]).slice(0,5);
+      const aliases=actorSynonyms(actor).slice(0,5);
       item.innerHTML=`<strong title="Main name">${escapeHtml(actor.value)}</strong><span>${aliases.length?`Synonyms: ${escapeHtml(aliases.join(' · '))}`:escapeHtml(actor.cluster.type||actor.uuid)}</span>`;
       item.addEventListener('click',()=>selectActor(actor.uuid)); item.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();selectActor(actor.uuid);}});
       frag.appendChild(item);
@@ -1290,6 +1318,10 @@
 
   function bindEvents() {
     els.actorSearch.addEventListener('input',()=>{state.actorSearch=els.actorSearch.value;state.actorLimit=250;renderActorList();});
+    const applyActorFilters=()=>{state.minRelationships=Math.max(0,Number.parseInt(els.relationshipFilter.value,10)||0);state.minSynonyms=Math.max(0,Number.parseInt(els.synonymFilter.value,10)||0);state.actorSector=els.sectorFilter.value;state.actorLimit=250;renderActorList();};
+    [els.relationshipFilter,els.synonymFilter].forEach(el=>el.addEventListener('input',applyActorFilters));
+    els.sectorFilter.addEventListener('change',applyActorFilters);
+    els.clearActorFilters.addEventListener('click',()=>{els.relationshipFilter.value='';els.synonymFilter.value='';els.sectorFilter.value='';applyActorFilters();});
     els.sidebarsBtn.addEventListener('click',toggleSidebars);
     [els.depth,els.maxNodes,els.reverse].forEach(el=>el.addEventListener('change',renderGraph)); els.fitBtn.addEventListener('click',fitGraph);
     els.nodeDisplay.addEventListener('change',()=>{state.nodeDisplayMode=els.nodeDisplay.value;storageSet('misp-galaxy.nodeDisplayMode',state.nodeDisplayMode);renderGraph();});
