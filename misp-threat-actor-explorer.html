@@ -202,15 +202,27 @@
       background: #164e63; color: #cffafe; font-size: 8px; font-weight: 800; vertical-align: 1px; letter-spacing: .04em;
     }
     .misp-edge-label {
+      --edge-label-accent: #94a3b8;
       display: inline-flex; align-items: center; justify-content: center; max-width: 210px;
       padding: 5px 9px; border: 1px solid #94a3b8; border-radius: 999px;
       background: rgba(15,23,42,.98); color: #ffffff; box-shadow: 0 2px 9px rgba(2,6,23,.42);
       font: 750 12px/1.15 Inter, ui-sans-serif, system-ui, sans-serif; letter-spacing: .01em;
       text-align: center; white-space: normal; overflow-wrap: anywhere; pointer-events: none; user-select: none;
+      /* Keep the relationship itself unobstructed and visually tie the pill back to it. */
+      position: relative; transform: translateY(16px);
     }
-    .misp-edge-label.metadata { border-color: #2dd4bf; background: rgba(6,55,51,.96); color: #ccfbf1; }
-    .misp-edge-label.similar { border-color: #fbbf24; background: rgba(69,44,5,.96); color: #fef3c7; }
+    .misp-edge-label::before {
+      content: ''; position: absolute; left: 50%; bottom: 100%; width: 1px; height: 12px;
+      background: var(--edge-label-accent); opacity: .9;
+    }
+    .misp-edge-label.metadata { --edge-label-accent: #2dd4bf; border-color: #2dd4bf; background: rgba(6,55,51,.96); color: #ccfbf1; }
+    .misp-edge-label.similar { --edge-label-accent: #fbbf24; border-color: #fbbf24; background: rgba(69,44,5,.96); color: #fef3c7; }
     .misp-edge-label.hidden { display: none; }
+
+    /* Pivotick sizes custom labels tightly. The downward offset and shadows must be
+       allowed to paint outside that foreignObject instead of clipping the pill. */
+    #graph .pvt-edge-group .label-container,
+    #graph .pvt-edge-group .label-container foreignObject { overflow: visible; pointer-events: none; }
 
     .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
     @media (max-width: 1100px) {
