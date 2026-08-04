@@ -514,6 +514,14 @@
   function nextFrame() { return new Promise(resolve => requestAnimationFrame(resolve)); }
   function storageGet(key) { try { return localStorage.getItem(key); } catch { return null; } }
   function storageSet(key,value) { try { localStorage.setItem(key,value); } catch {} }
+  function actorUuidFromHash() {
+    const hash=location.hash.slice(1); if (!hash) return null;
+    try { return decodeURIComponent(hash.startsWith('actor=')?hash.slice(6):hash); } catch { return null; }
+  }
+  function updateActorHash(uuid,{replace=false}={}) {
+    const hash=`#actor=${encodeURIComponent(uuid)}`;
+    if (location.hash!==hash) history[replace?'replaceState':'pushState'](null,'',hash);
+  }
   function unique(values) { return [...new Set(values.filter(v => v != null && v !== ''))]; }
   const ISO_COUNTRY_CODES=new Set(('AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW').split(' '));
   const COUNTRY_CODE_ALIASES={
@@ -1186,8 +1194,10 @@
     updateSidebars();
     requestAnimationFrame(()=>window.dispatchEvent(new Event('resize')));
   }
-  function selectActor(uuid) {
+  function selectActor(uuid,{updateHash=true,replaceHash=false}={}) {
+    if (!state.actors.some(actor=>actor.uuid===uuid)) return;
     state.selectedActor=uuid; state.pivotRoot=uuid; state.selectedElement={type:'node',record:state.records.get(uuid)}; storageSet('misp-galaxy.selectedActor',uuid);
+    if (updateHash) updateActorHash(uuid,{replace:replaceHash});
     renderActorList(); updateMetaControls(); renderGraph();
   }
   function selectGraphNode(id) { const rec=state.records.get(id)||state.visible.nodes.find(n=>(n.id||n.uuid)===id); if(!rec)return; state.selectedElement={type:rec.nodeType==='meta'?'meta':'node',record:rec}; state.activeTab='details'; syncTabs(); renderInspector(); }
@@ -1318,9 +1328,9 @@
   async function runTask(task) { try { await task(); } catch(error) { console.error(error); toast(error.message||String(error),'error'); } finally { loading(false); } }
   function chooseInitialActor() {
     if (!state.actors.length) return;
-    const saved=storageGet('misp-galaxy.selectedActor');
-    let actor=state.actors.find(a=>a.uuid===saved) || state.actors.find(a=>/^(sofacy|apt28|fancy bear)$/i.test(a.value)) || state.actors.find(a=>(a.related||[]).length>0) || state.actors[0];
-    selectActor(actor.uuid);
+    const linked=actorUuidFromHash(), saved=storageGet('misp-galaxy.selectedActor');
+    let actor=state.actors.find(a=>a.uuid===linked) || state.actors.find(a=>a.uuid===saved) || state.actors.find(a=>/^(sofacy|apt28|fancy bear)$/i.test(a.value)) || state.actors.find(a=>(a.related||[]).length>0) || state.actors[0];
+    selectActor(actor.uuid,{replaceHash:true});
   }
   async function updateCacheInfo() {
     if (!state.db) return;
@@ -1329,6 +1339,7 @@
   }
 
   function bindEvents() {
+    window.addEventListener('hashchange',()=>{const uuid=actorUuidFromHash();if(uuid && uuid!==state.selectedActor)selectActor(uuid,{updateHash:false});});
     els.actorSearch.addEventListener('input',()=>{state.actorSearch=els.actorSearch.value;state.actorLimit=250;renderActorList();});
     const applyActorFilters=()=>{state.minRelationships=Math.max(0,Number.parseInt(els.relationshipFilter.value,10)||0);state.minSynonyms=Math.max(0,Number.parseInt(els.synonymFilter.value,10)||0);state.actorSector=els.sectorFilter.value;state.actorLimit=250;renderActorList();};
     [els.relationshipFilter,els.synonymFilter].forEach(el=>el.addEventListener('input',applyActorFilters));
