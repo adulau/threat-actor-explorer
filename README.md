@@ -65,6 +65,10 @@ The graph toolbar includes three display controls:
 
 Pivotick runs in its **full UI mode**, so its complete graph control surface is also available. Use Pivotick's View controls to switch layouts and reorder the graph, tune or pause the force physics, change grid settings, fit or zoom the viewport, and access the remaining graph tools.
 
+## Appearance
+
+Use the **Light mode / Dark mode** button in the header to switch the entire explorer. The initial appearance follows the operating-system preference, subsequent choices are saved in local browser storage, and the selected theme is passed through Pivotick's supported `UI.theme` option so the graph canvas and its full control surface stay synchronized with the surrounding application.
+
 The current graph root has a cyan outline and a **ROOT** marker. Node and edge display preferences are saved in local browser storage and included in graph JSON exports.
 
 ## Features
