@@ -140,7 +140,7 @@
     .empty-state { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; color: var(--muted); pointer-events: none; padding: 30px; }
     .empty-state strong { color: var(--text); display: block; margin-bottom: 6px; }
     .graph-stats { position: absolute; left: 12px; bottom: 12px; z-index: 8; background: var(--overlay-bg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; font-size: 11px; color: var(--muted); backdrop-filter: blur(7px); }
-    .legend { position: absolute; right: 12px; top: 12px; z-index: 8; background: var(--overlay-bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px; font-size: 11px; backdrop-filter: blur(7px); }
+    .legend { position: absolute; right: 76px; top: 12px; z-index: 8; background: var(--overlay-bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px; font-size: 11px; backdrop-filter: blur(7px); }
     .legend-row { display: flex; align-items: center; gap: 7px; margin: 3px 0; color: var(--muted); }
     .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
     .tabs { display: flex; border-bottom: 1px solid var(--line); }
@@ -1178,6 +1178,13 @@
   function getPivotickCtor() {
     const p=window.Pivotick; return p?.default||p?.Pivotick||p?.Graph||(typeof p==='function'?p:null);
   }
+  function minimapOptions() {
+    const width=Math.min(200,Math.max(20,els.graph.clientWidth-28));
+    const aspect=els.graph.clientWidth ? els.graph.clientHeight/els.graph.clientWidth : .7;
+    const desiredHeight=Math.min(140,Math.max(70,Math.round(width*aspect)));
+    const height=Math.min(desiredHeight,Math.max(20,els.graph.clientHeight-28));
+    return {position:'bottom-right',width,height,collapsed:false};
+  }
   function destroyGraph() {
     if (state.graph?.destroy) { try { state.graph.destroy(); } catch(e) { console.warn(e); } }
     state.graph=null; [...els.graph.querySelectorAll('.pivotick')].forEach(n=>n.remove());
@@ -1215,7 +1222,7 @@
       isDirected:true,
       simulation:{useWorker:false,d3LinkDistance:105,d3CollideRadiusMultiplier:1.12},
       render:renderOptions,
-      UI:{mode:'full',theme:state.theme,minimap:{position:'bottom-right',width:200,collapsed:false},tooltip:{render:element=>{ const d=element?.getData?.(); if (d?.record) return tooltipHtmlForNode(d.record); if (d?.edgeRecord) return tooltipHtmlForEdge(d.edgeRecord); return ''; }}},
+      UI:{mode:'full',theme:state.theme,minimap:minimapOptions(),tooltip:{render:element=>{ const d=element?.getData?.(); if (d?.record) return tooltipHtmlForNode(d.record); if (d?.edgeRecord) return tooltipHtmlForEdge(d.edgeRecord); return ''; }}},
       callbacks:{
         onNodeClick:(event,node)=>selectGraphNode(node.id), onNodeSelect:(node)=>selectGraphNode(node.id), onNodeDbclick:(event,node)=>pivotGraphNode(node.id),
         onEdgeClick:(event,edge)=>selectGraphEdge(edge.getData()?.edgeRecord), onEdgeSelect:(edge)=>selectGraphEdge(edge.getData()?.edgeRecord)
