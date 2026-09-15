@@ -65,6 +65,10 @@ The graph toolbar includes three display controls:
 
 Pivotick runs in its **full UI mode**, so its complete graph control surface is also available. Use Pivotick's View controls to switch layouts and reorder the graph, tune or pause the force physics, change grid settings, fit or zoom the viewport, and access the remaining graph tools.
 
+### Minimap navigation
+
+The Pivotick minimap stays open in the bottom-right corner of the graph, providing an overview when a graph extends beyond the current viewport. Click anywhere in the minimap to recenter the main view, drag its viewport rectangle to pan across the graph, or use the small corner toggle to collapse and restore it. The explorer legend is kept in the top-right corner so it does not cover the minimap.
+
 ## Appearance
 
 Use the **Light mode / Dark mode** button in the header to switch the entire explorer. The initial appearance follows the operating-system preference, subsequent choices are saved in local browser storage, and the selected theme is passed through Pivotick's supported `UI.theme` option so the graph canvas and its full control surface stay synchronized with the surrounding application.
