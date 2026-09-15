@@ -4,6 +4,8 @@ A standalone, browser-only HTML/JavaScript application for exploring the MISP `t
 
 <img width="1766" height="1020" alt="image" src="https://github.com/user-attachments/assets/3b5abdeb-9f45-4686-98ae-0f4a72075156" />
 
+Online version available at https://foo.be/threat-actor-explorer/misp-threat-actor-explorer.html
+
 ## Run with the bundled repositories
 
 Clone with its submodules and start the local server:
