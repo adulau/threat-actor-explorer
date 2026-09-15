@@ -1185,6 +1185,10 @@
     const height=Math.min(desiredHeight,Math.max(20,els.graph.clientHeight-28));
     return {position:'bottom-right',width,height,collapsed:false};
   }
+  function pivotickMinimapPlugin(Ctor, options) {
+    const factory=Ctor?.minimap||window.Pivotick?.minimap;
+    return typeof factory==='function'?factory(options):null;
+  }
   function destroyGraph() {
     if (state.graph?.destroy) { try { state.graph.destroy(); } catch(e) { console.warn(e); } }
     state.graph=null; [...els.graph.querySelectorAll('.pivotick')].forEach(n=>n.remove());
@@ -1218,11 +1222,14 @@
       renderLabel:renderReadableEdgeLabel
     };
     if (state.nodeDisplayMode !== 'shapes') renderOptions.renderNode=renderReadableNode;
+    const minimap=minimapOptions();
+    const minimapPlugin=pivotickMinimapPlugin(Ctor,minimap);
     const options={
       isDirected:true,
       simulation:{useWorker:false,d3LinkDistance:105,d3CollideRadiusMultiplier:1.12},
       render:renderOptions,
-      UI:{mode:'full',theme:state.theme,minimap:minimapOptions(),tooltip:{render:element=>{ const d=element?.getData?.(); if (d?.record) return tooltipHtmlForNode(d.record); if (d?.edgeRecord) return tooltipHtmlForEdge(d.edgeRecord); return ''; }}},
+      UI:{mode:'full',theme:state.theme,minimap:minimapPlugin?false:minimap,tooltip:{render:element=>{ const d=element?.getData?.(); if (d?.record) return tooltipHtmlForNode(d.record); if (d?.edgeRecord) return tooltipHtmlForEdge(d.edgeRecord); return ''; }}},
+      plugins:minimapPlugin?[minimapPlugin]:[],
       callbacks:{
         onNodeClick:(event,node)=>selectGraphNode(node.id), onNodeSelect:(node)=>selectGraphNode(node.id), onNodeDbclick:(event,node)=>pivotGraphNode(node.id),
         onEdgeClick:(event,edge)=>selectGraphEdge(edge.getData()?.edgeRecord), onEdgeSelect:(edge)=>selectGraphEdge(edge.getData()?.edgeRecord)
