@@ -1094,14 +1094,37 @@
     if (rec.synonyms?.length) out.Synonyms=rec.synonyms.join(', ');
     out['Source file']=rec.cluster?.path||''; return out;
   }
-  function tooltipHtmlForNode(rec) {
-    if (rec.nodeType==='meta') return `<div style="max-width:480px"><strong>${escapeHtml(rec.field)}</strong><div style="opacity:.7;margin:2px 0 8px">Metadata value · ${rec.recordCount.toLocaleString()} matching records</div><div style="overflow-wrap:anywhere;white-space:pre-wrap">${escapeHtml(rec.value)}</div><div style="opacity:.65;margin-top:8px">Double-click to pivot.</div></div>`;
-    const rows=Object.entries(flatMetadata(rec)).map(([k,v])=>`<div style="display:grid;grid-template-columns:110px 1fr;gap:6px;margin:3px 0"><span style="opacity:.65">${escapeHtml(k)}</span><span style="overflow-wrap:anywhere;white-space:pre-wrap">${escapeHtml(v)}</span></div>`).join('');
-    return `<div style="max-width:480px;max-height:55vh;overflow:auto"><strong>${escapeHtml(rec.value)}</strong><div style="opacity:.7;margin:2px 0 8px">${escapeHtml(rec.kind)} · ${escapeHtml(rec.cluster?.type||'')}</div>${rows}</div>`;
+  function tooltipLine(label,value,labelWidth,preWrap=false) {
+    const row=document.createElement('div');
+    Object.assign(row.style,{display:'grid',gridTemplateColumns:`${labelWidth}px 1fr`,gap:'6px',margin:'3px 0'});
+    const key=document.createElement('span'); key.style.opacity='.65'; key.textContent=String(label);
+    const content=document.createElement('span'); content.style.overflowWrap='anywhere';
+    if (preWrap) content.style.whiteSpace='pre-wrap';
+    content.textContent=String(value??''); row.append(key,content); return row;
   }
-  function tooltipHtmlForEdge(edgeData) {
-    const rel=edgeData.relation||{}; const rows=Object.entries(rel).map(([k,v])=>`<div style="display:grid;grid-template-columns:100px 1fr;gap:6px;margin:3px 0"><span style="opacity:.65">${escapeHtml(k)}</span><span style="overflow-wrap:anywhere">${escapeHtml(plainValue(v))}</span></div>`).join('');
-    return `<div style="max-width:430px;max-height:45vh;overflow:auto"><strong>${escapeHtml(edgeData.type)}</strong><div style="opacity:.7;margin:3px 0 8px">${escapeHtml(edgeData.sourceRecord?.value)} → ${escapeHtml(edgeData.targetRecord?.value)}</div>${rows}</div>`;
+  function tooltipElementForNode(rec) {
+    const tooltip=document.createElement('div'); tooltip.style.maxWidth='480px';
+    const title=document.createElement('strong'); title.textContent=String(rec.nodeType==='meta'?rec.field:rec.value||'');
+    const summary=document.createElement('div'); Object.assign(summary.style,{opacity:'.7',margin:'2px 0 8px'});
+    tooltip.append(title,summary);
+    if (rec.nodeType==='meta') {
+      summary.textContent=`Metadata value · ${rec.recordCount.toLocaleString()} matching records`;
+      const value=document.createElement('div'); Object.assign(value.style,{overflowWrap:'anywhere',whiteSpace:'pre-wrap'}); value.textContent=String(rec.value||'');
+      const hint=document.createElement('div'); Object.assign(hint.style,{opacity:'.65',marginTop:'8px'}); hint.textContent='Double-click to pivot.';
+      tooltip.append(value,hint); return tooltip;
+    }
+    Object.assign(tooltip.style,{maxHeight:'55vh',overflow:'auto'});
+    summary.textContent=`${rec.kind||''} · ${rec.cluster?.type||''}`;
+    for (const [key,value] of Object.entries(flatMetadata(rec))) tooltip.append(tooltipLine(key,value,110,true));
+    return tooltip;
+  }
+  function tooltipElementForEdge(edgeData) {
+    const tooltip=document.createElement('div'); Object.assign(tooltip.style,{maxWidth:'430px',maxHeight:'45vh',overflow:'auto'});
+    const title=document.createElement('strong'); title.textContent=String(edgeData.type||'');
+    const summary=document.createElement('div'); Object.assign(summary.style,{opacity:'.7',margin:'3px 0 8px'});
+    summary.textContent=`${edgeData.sourceRecord?.value||''} → ${edgeData.targetRecord?.value||''}`; tooltip.append(title,summary);
+    for (const [key,value] of Object.entries(edgeData.relation||{})) tooltip.append(tooltipLine(key,plainValue(value),100));
+    return tooltip;
   }
   function nodeKindMark(kind) {
     return ({Actor:'TA',Activity:'AC',Technique:'T',Producer:'P',Tool:'TL',Meta:'#',Other:'•',Unresolved:'?'})[kind] || '•';
@@ -1222,7 +1245,7 @@
       isDirected:true,
       simulation:{useWorker:false,d3LinkDistance:105,d3CollideRadiusMultiplier:1.12},
       render:renderOptions,
-      UI:{mode:'full',theme:state.theme,minimap:minimapOptions(),tooltip:{render:element=>{ const d=element?.getData?.(); if (d?.record) return tooltipHtmlForNode(d.record); if (d?.edgeRecord) return tooltipHtmlForEdge(d.edgeRecord); return ''; }}},
+      UI:{mode:'full',theme:state.theme,minimap:minimapOptions(),tooltip:{render:element=>{ const d=element?.getData?.(); if (d?.record) return tooltipElementForNode(d.record); if (d?.edgeRecord) return tooltipElementForEdge(d.edgeRecord); return document.createElement('span'); }}},
       callbacks:{
         onNodeClick:(event,node)=>selectGraphNode(node.id), onNodeSelect:(node)=>selectGraphNode(node.id), onNodeDbclick:(event,node)=>pivotGraphNode(node.id),
         onEdgeClick:(event,edge)=>selectGraphEdge(edge.getData()?.edgeRecord), onEdgeSelect:(edge)=>selectGraphEdge(edge.getData()?.edgeRecord)
