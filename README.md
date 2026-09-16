@@ -69,7 +69,7 @@ Pivotick runs in its **full UI mode**, so its complete graph control surface is 
 
 ### Minimap navigation
 
-The Pivotick minimap stays open in the bottom-right corner of the graph, providing an overview when a graph extends beyond the current viewport. Its dimensions adapt to the available graph canvas so that it remains visible in narrow or short views. Click anywhere in the minimap to recenter the main view, drag its viewport rectangle to pan across the graph, or use the small corner toggle to collapse and restore it. The explorer legend is inset from the top-right corner so it does not cover Pivotick's viewport toolbar.
+The Pivotick minimap stays open in the bottom-right corner of the graph, providing an overview when a graph extends beyond the current viewport. Its dimensions adapt to the available graph canvas so that it remains visible in narrow or short views. Click anywhere in the minimap to recenter the main view, drag its viewport rectangle to pan across the graph, or use the small corner toggle to collapse and restore it. Pivotick's built-in legend identifies the visible node types.
 
 ## Appearance
 

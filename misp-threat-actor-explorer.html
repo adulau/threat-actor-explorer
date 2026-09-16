@@ -140,9 +140,6 @@
     .empty-state { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; color: var(--muted); pointer-events: none; padding: 30px; }
     .empty-state strong { color: var(--text); display: block; margin-bottom: 6px; }
     .graph-stats { position: absolute; left: 12px; bottom: 12px; z-index: 8; background: var(--overlay-bg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; font-size: 11px; color: var(--muted); backdrop-filter: blur(7px); }
-    .legend { position: absolute; right: 76px; top: 12px; z-index: 8; background: var(--overlay-bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px; font-size: 11px; backdrop-filter: blur(7px); }
-    .legend-row { display: flex; align-items: center; gap: 7px; margin: 3px 0; color: var(--muted); }
-    .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
     .tabs { display: flex; border-bottom: 1px solid var(--line); }
     .tab { flex: 1; padding: 11px 5px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; }
     .tab.active { color: var(--text); border-bottom-color: var(--accent); }
@@ -368,7 +365,6 @@
           </div>
         </div>
         <div id="graphStats" class="graph-stats" hidden></div>
-        <div id="legend" class="legend" hidden></div>
       </div>
     </section>
 
@@ -530,7 +526,7 @@
   const els = {
     pivotickStatus: $('pivotickStatus'), mispStatus: $('mispStatus'), updateBtn: $('updateBtn'), dataBtn: $('dataBtn'), themeBtn: $('themeBtn'), sidebarsBtn: $('sidebarsBtn'), workspace: $('workspace'),
     actorSearch: $('actorSearch'), relationshipFilter: $('relationshipFilter'), synonymFilter: $('synonymFilter'), sectorFilter: $('sectorFilter'), clearActorFilters: $('clearActorFilters'), actorCount: $('actorCount'), actorList: $('actorList'), graph: $('graph'), emptyState: $('emptyState'),
-    graphStats: $('graphStats'), legend: $('legend'), depth: $('depthSelect'), maxNodes: $('maxNodesSelect'), reverse: $('reverseToggle'),
+    graphStats: $('graphStats'), depth: $('depthSelect'), maxNodes: $('maxNodesSelect'), reverse: $('reverseToggle'),
     metaToggle: $('metaToggle'), countryFlags: $('countryFlagsToggle'), nodeDisplay: $('nodeDisplaySelect'), edgeLabels: $('edgeLabelSelect'), metaFieldsBtn: $('metaFieldsBtn'), rootBtn: $('rootBtn'), resetRootBtn: $('resetRootBtn'),
     metaDialog: $('metaDialog'), metaFieldSearch: $('metaFieldSearch'), metaFieldList: $('metaFieldList'), metaSelectionSummary: $('metaSelectionSummary'),
     producerFilterBtn: $('producerFilterBtn'), producerDialog: $('producerDialog'), producerSearch: $('producerSearch'), producerList: $('producerList'), producerSelectionSummary: $('producerSelectionSummary'),
@@ -1007,11 +1003,6 @@
       label.append(input,span); els.kindChecks.appendChild(label);
     }
   }
-  function renderLegend() {
-    const visibleKinds=new Set(state.visible.nodes.map(n=>n.kind));
-    els.legend.innerHTML=Object.entries(KIND_STYLE).filter(([k])=>k!=='Unresolved' && visibleKinds.has(k)).map(([k,s])=>`<div class="legend-row"><i class="legend-dot" style="background:${s.color}"></i>${escapeHtml(k)}</div>`).join('');
-    els.legend.hidden=!state.visible.nodes.length;
-  }
   function updateMetaControls() {
     if (els.metaToggle) els.metaToggle.checked=state.showMeta;
     if (els.metaFieldsBtn) els.metaFieldsBtn.textContent=`Meta fields (${state.selectedMetaFields.size})`;
@@ -1255,7 +1246,7 @@
     for (const attempt of attempts) { try { state.graph=attempt(); break; } catch (error) { errors.push(error); [...els.graph.querySelectorAll('.pivotick')].forEach(n=>n.remove()); } }
     if (!state.graph) { console.error(...errors); toast(`Pivotick could not create the graph: ${errors.at(-1)?.message||'unknown constructor error'}`,'error'); return; }
     const metaCount=visible.nodes.filter(n=>n.kind==='Meta').length; els.graphStats.hidden=false; els.graphStats.textContent=`${visible.nodes.length} nodes (${metaCount} metadata) · ${visible.edges.length} edges${visible.truncated?' · truncated':''}`;
-    renderLegend(); renderInspector();
+    renderInspector();
   }
   function fitGraph() {
     try {
@@ -1489,7 +1480,7 @@
     state.nodeDisplayMode=['cards','full','compact','shapes'].includes(savedNodeDisplay)?savedNodeDisplay:'cards';
     state.edgeLabelMode=['all','relationships','metadata','none'].includes(savedEdgeLabels)?savedEdgeLabels:'all';
     els.nodeDisplay.value=state.nodeDisplayMode; els.edgeLabels.value=state.edgeLabelMode; els.countryFlags.checked=state.showCountryFlags;
-    bindEvents(); updateSidebars(); renderKindChecks(); renderLegend(); updateMetaControls();
+    bindEvents(); updateSidebars(); renderKindChecks(); updateMetaControls();
     try { state.db=await openDb(); }
     catch(error) { toast(`IndexedDB is unavailable: ${error.message}. Local caching cannot work.`,'error'); return; }
     let pivotick=false,misp=false;
