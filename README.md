@@ -16,13 +16,21 @@ cd threat-actor-explorer
 ./start-standalone.sh
 ```
 
-Then open `http://localhost:8000/misp-threat-actor-explorer.html`. The launcher builds Pivotick once, creates a manifest for the checked-out MISP Galaxy clusters, and serves the application locally. The application automatically reads both submodules and requires no initial ZIP import or GitHub API request. Node.js/npm and Python 3 are required by the launcher; set `PORT` or `HOST` to override its defaults.
+Then open `http://localhost:8000/misp-threat-actor-explorer.html`. The launcher builds the pinned Pivotick v3.0.0 bundle (and rebuilds it when the submodule commit changes), creates a manifest for the checked-out MISP Galaxy clusters, and serves the application locally. The application automatically reads both submodules and requires no initial ZIP import or GitHub API request. Node.js/npm and Python 3 are required by the launcher; set `PORT` or `HOST` to override its defaults.
 
 For an existing checkout, `git submodule update --init --recursive` obtains the bundled repositories. A later `git submodule update --remote` followed by restarting the launcher updates the local data sources.
 
 The original single-file workflow remains available: open `misp-threat-actor-explorer.html` directly in a recent browser and select **Download and initialise**, or use **Data** to import release files manually. Browsers do not permit an HTML file opened through `file://` to enumerate neighboring files, so submodule auto-loading uses the launcher.
 
 The fallback single-file workflow requires no HTTP server, backend, build step, account, or GitHub token.
+
+## Development validation
+
+With `./start-standalone.sh` running, run `node tests/graph-tools.mjs`.
+The browser smoke test uses Playwright installed in the Pivotick submodule and
+system Chromium (`/usr/bin/chromium`, or set `CHROMIUM_PATH`). Set `EXPLORER_URL`
+when using a different host or port. It checks Galaxy loading, simplification,
+the data table, JSON export, reset and theme switching.
 
 ## Local caching
 
@@ -66,6 +74,29 @@ The graph toolbar includes three display controls:
 - **Edge labels** — show all labels, only ordinary relationships, only metadata fields, or no labels. Relationship labels use larger, high-contrast pills, remain horizontal, and sit just below their edge with a short connector so the relationship line and its tag are both fully visible. Stronger relationship lines and arrowheads stay legible against the graph canvas.
 
 Pivotick runs in its **full UI mode**, so its complete graph control surface is also available. Use Pivotick's View controls to switch layouts and reorder the graph, tune or pause the force physics, change grid settings, fit or zoom the viewport, and access the remaining graph tools.
+
+### Simplification and graph tools
+
+**Simplify** opens Pivotick’s native rule panel: group matching neighbours or chains,
+fold nodes with few links or outside the k-core, or find Communities. Rules start off;
+enable and tune them in the panel. Types use the explorer’s semantic entity classes.
+Double-click a group to open it; use its sidebar or context menu to inspect members,
+pull them out, or view them in the table. Multi-select nodes to group them by hand.
+Grouping changes only the view; it does not remove Galaxy records or relationships.
+
+**Graph table** opens Pivotick’s searchable, filterable node/edge data dock, including
+folded members. The graph’s top bar offers **Export neighbourhood** (JSON, or nodes
+and relationships as CSV). These exports contain the original collected neighbourhood,
+including records folded, hidden or locally edited in Pivotick; they do not serialize
+local canvas edits. **Reset graph** rebuilds the current neighbourhood after confirmation,
+clearing local edits, notes, graph filters and groups. Changing the actor, traversal
+settings, display options or theme also rebuilds the graph and clears that session state.
+
+The native full interface retains search, graph filters, notes, undo/redo, selection
+and lasso, creation/editing tools, context menus, layout and physics controls, zoom,
+fit and fullscreen. Edits are local to the graph session and never modify bundled data.
+Older manually imported bundles may lack simplification or the graph table; their
+shortcuts are disabled. Update Pivotick from **Data** to use the v3 toolset.
 
 ### Minimap navigation
 
