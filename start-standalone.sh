@@ -9,13 +9,15 @@ if [[ ! -f misp-galaxy/clusters/threat-actor.json || ! -f pivotick/package.json 
   git submodule update --init --recursive
 fi
 
-if [[ ! -f pivotick/dist/pivotick.umd.js || ! -f pivotick/dist/assets/pivotick.css ]]; then
+mkdir -p .local
+PIVOTICK_COMMIT=$(git -C pivotick rev-parse HEAD)
+if [[ "$(cat .local/pivotick-build-commit 2>/dev/null || true)" != "$PIVOTICK_COMMIT" || ! -f pivotick/dist/pivotick.umd.js || ! -f pivotick/dist/pivotick.css ]]; then
   echo "Building the local Pivotick browser bundle..."
-  npm --prefix pivotick ci
+  npm --prefix pivotick ci --cache "$ROOT/.local/npm-cache"
   npm --prefix pivotick run build:browser
+  printf '%s\n' "$PIVOTICK_COMMIT" > .local/pivotick-build-commit
 fi
 
-mkdir -p .local
 python3 - <<'PY'
 import json
 import subprocess

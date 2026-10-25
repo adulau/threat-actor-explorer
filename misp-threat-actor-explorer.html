@@ -349,6 +349,9 @@
         <button id="resetRootBtn" class="btn" title="Return to the selected threat actor" hidden>Back to actor</button>
         <div class="grow"></div>
         <div id="kindChecks" class="checks" aria-label="Entity type filters"></div>
+        <button id="simplifyBtn" class="btn" title="Fold repeated neighbours, chains, low-degree nodes or communities">Simplify</button>
+        <button id="graphTableBtn" class="btn" title="Browse, search and filter the graph’s real nodes and edges">Graph table</button>
+        <button id="resetGraphBtn" class="btn" title="Restore this neighbourhood and clear graph edits, filters, notes and groups">Reset graph</button>
         <button id="fitBtn" class="btn" title="Fit graph to viewport">Fit</button>
       </div>
       <div id="graph">
@@ -472,7 +475,7 @@
   };
   const LOCAL = {
     pivotickJs: 'pivotick/dist/pivotick.umd.js',
-    pivotickCss: 'pivotick/dist/assets/pivotick.css',
+    pivotickCss: 'pivotick/dist/pivotick.css',
     mispManifest: '.local/misp-clusters.json'
   };
   const KIND_STYLE = {
@@ -1224,8 +1227,9 @@
       edges:visible.edges.map(e=>{ const meta=e.edgeKind==='metadata'; const similar=e.type==='similar'; return {id:e.id,from:e.source,to:e.target,data:{label:meta?e.type.replace(/^meta\./,''):e.type,edgeRecord:e},style:{edge:{strokeColor:meta?'#0d9488':(similar?'#d97706':(dark?'#64748b':'#475569')),strokeWidth:meta?2.2:(similar?2.8:2.3),opacity:meta?.9:.96,curveStyle:'bidirectional',dashed:meta||similar,rotateLabel:false,markerEnd:'arrow'},label:{backgroundColor:dark?'#0f172af2':'#fffffff2',fontSize:12,fontFamily:'system-ui, sans-serif',color:dark?'#f8fafc':'#172033'}}}; })
     };
     const Ctor=getPivotickCtor(); if (!Ctor) { toast('Unable to locate the Pivotick constructor in the loaded bundle.','error'); return; }
+    // Rebuilds can detach the canvas mid-animation; use immediate viewport updates.
     const renderOptions={
-      enableFocusMode:true,enableNodeExpansion:false,zoomEnabled:true,dragEnabled:true,nodeTypeAccessor:n=>n.getData()?.kind,
+      enableFocusMode:true,enableNodeExpansion:false,zoomEnabled:true,zoomAnimation:false,dragEnabled:true,nodeTypeAccessor:n=>n.getData()?.kind,
       defaultNodeStyle:{textColor:dark?'#f8fafc':'#0f172a',textVerticalShift:-2.0,textAnchorPosition:'middle'},
       defaultEdgeStyle:{rotateLabel:false,markerEnd:'arrow'},
       defaultLabelStyle:{fontSize:11,color:dark?'#f8fafc':'#172033',backgroundColor:dark?'#0f172af2':'#fffffff2',labelAccessor:e=>String(e.getData()?.label||'')},
@@ -1236,16 +1240,32 @@
       isDirected:true,
       simulation:{useWorker:false,d3LinkDistance:105,d3CollideRadiusMultiplier:1.12},
       render:renderOptions,
-      UI:{mode:'full',theme:state.theme,minimap:minimapOptions(),tooltip:{render:element=>{ const d=element?.getData?.(); if (d?.record) return tooltipElementForNode(d.record); if (d?.edgeRecord) return tooltipElementForEdge(d.edgeRecord); return document.createElement('span'); }}},
+      UI:{mode:'full',theme:state.theme,minimap:minimapOptions(),
+        simplify:{enabled:true,rules:[
+          {kind:'neighbours',minSize:3,enabled:false},
+          {kind:'chains',minSize:3,enabled:false},
+          {kind:'degree',minDegree:2,enabled:false},
+          {kind:'kcore',k:2,enabled:false},
+          {kind:'communities',level:4,enabled:false,useWorker:false}
+        ]},
+        topBar:{actions:[
+          {id:'export-neighbourhood',text:'Export neighbourhood',title:'Export the original neighbourhood, including folded and hidden records',
+            onclick:()=>exportVisibleGraph(),menu:[
+              {text:'Nodes CSV',onclick:()=>exportNodesCsv()},
+              {text:'Relationships CSV',onclick:()=>exportRelationsCsv()}
+            ]}
+        ]},
+        tooltip:{render:element=>{ const d=element?.getData?.(); if (d?.record) return tooltipElementForNode(d.record); if (d?.edgeRecord) return tooltipElementForEdge(d.edgeRecord); return document.createElement('span'); }}},
       callbacks:{
         onNodeClick:(event,node)=>selectGraphNode(node.id), onNodeSelect:(node)=>selectGraphNode(node.id), onNodeDbclick:(event,node)=>pivotGraphNode(node.id),
         onEdgeClick:(event,edge)=>selectGraphEdge(edge.getData()?.edgeRecord), onEdgeSelect:(edge)=>selectGraphEdge(edge.getData()?.edgeRecord)
       }
     };
-    const attempts=[()=>new Ctor({container:els.graph,data,...options}),()=>new Ctor({container:els.graph,data,options}),()=>new Ctor(els.graph,data,options)]; const errors=[];
-    for (const attempt of attempts) { try { state.graph=attempt(); break; } catch (error) { errors.push(error); [...els.graph.querySelectorAll('.pivotick')].forEach(n=>n.remove()); } }
-    if (!state.graph) { console.error(...errors); toast(`Pivotick could not create the graph: ${errors.at(-1)?.message||'unknown constructor error'}`,'error'); return; }
+    try { state.graph=new Ctor(els.graph,data,options); }
+    catch(error) { destroyGraph(); console.error(error); toast(`Pivotick could not create the graph: ${error.message}`,'error'); return; }
     const metaCount=visible.nodes.filter(n=>n.kind==='Meta').length; els.graphStats.hidden=false; els.graphStats.textContent=`${visible.nodes.length} nodes (${metaCount} metadata) · ${visible.edges.length} edges${visible.truncated?' · truncated':''}`;
+    $('simplifyBtn').disabled=!state.graph.simplify || !state.graph.UIManager?.simplifyFlyout;
+    $('graphTableBtn').disabled=typeof state.graph.openTable!=='function';
     renderInspector();
   }
   function fitGraph() {
@@ -1434,6 +1454,11 @@
     [els.relationshipFilter,els.synonymFilter].forEach(el=>el.addEventListener('input',applyActorFilters));
     els.sectorFilter.addEventListener('change',applyActorFilters);
     els.clearActorFilters.addEventListener('click',()=>{els.relationshipFilter.value='';els.synonymFilter.value='';els.sectorFilter.value='';applyActorFilters();});
+    $('simplifyBtn').addEventListener('click',()=>state.graph?.UIManager?.modeStore?.toggleFlyout('simplify'));
+    $('graphTableBtn').addEventListener('click',()=>state.graph?.openTable?.());
+    $('resetGraphBtn').addEventListener('click',()=>{
+      if(state.graph && confirm('Reset this graph? Local graph edits, filters, notes and groups will be cleared. Galaxy data is unchanged.'))renderGraph();
+    });
     els.themeBtn.addEventListener('click',toggleTheme);
     els.sidebarsBtn.addEventListener('click',toggleSidebars);
     [els.depth,els.maxNodes,els.reverse].forEach(el=>el.addEventListener('change',renderGraph)); els.fitBtn.addEventListener('click',fitGraph);
